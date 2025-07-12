@@ -1,6 +1,13 @@
-import type { NextConfig } from "next";
+#!/usr/bin/env node
 
-// Build-time environment validation
+/**
+ * Build-time environment variable validation for Firebase
+ * This script runs before the build to ensure all required Firebase env vars are present
+ */
+
+// Load environment variables from .env.local
+require('dotenv').config({ path: '.env.local' });
+
 const requiredEnvVars = [
   'NEXT_PUBLIC_FIREBASE_API_KEY',
   'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
@@ -11,8 +18,8 @@ const requiredEnvVars = [
 function validateFirebaseEnvVars() {
   console.log('🔍 Validating Firebase environment variables...');
   
-  const missing: string[] = [];
-  const present: string[] = [];
+  const missing = [];
+  const present = [];
   
   requiredEnvVars.forEach(varName => {
     const value = process.env[varName];
@@ -39,11 +46,5 @@ function validateFirebaseEnvVars() {
   console.log('🚀 Firebase configuration is ready for build');
 }
 
-// Run validation before config is exported
-validateFirebaseEnvVars();
-
-const nextConfig: NextConfig = {
-  /* config options here */
-};
-
-export default nextConfig;
+// Run validation
+validateFirebaseEnvVars(); 

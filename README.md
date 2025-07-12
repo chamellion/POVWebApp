@@ -1,36 +1,236 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RCCG Place of Victory - Admin Dashboard
 
-## Getting Started
+A modern, responsive admin dashboard for managing church content, built with Next.js 14, TypeScript, Tailwind CSS, and Firebase.
 
-First, run the development server:
+## 🚀 Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Authentication**: Firebase Email/Password + Google sign-in
+- **Content Management**: CRUD operations for all content types
+- **Image Upload**: Firebase Storage with progress tracking
+- **Real-time Updates**: Firestore real-time listeners
+- **Responsive Design**: Mobile-first approach with responsive sidebar
+- **Modern UI**: Built with shadcn/ui components
+- **Form Validation**: React Hook Form + Zod validation
+- **Toast Notifications**: User-friendly feedback with Sonner
+
+## 📋 Content Modules
+
+1. **Leaders**: Manage church leaders with photos, roles, and bios
+2. **Events**: Schedule and manage church events and service times
+3. **Gallery**: Upload and organize community photos by category
+4. **Testimonies**: Share member stories and testimonies
+5. **Settings**: Configure site-wide settings and social links
+
+## 🛠️ Tech Stack
+
+- **Framework**: Next.js 14 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **UI Components**: shadcn/ui
+- **Authentication**: Firebase Auth
+- **Database**: Firestore
+- **Storage**: Firebase Storage
+- **Forms**: React Hook Form + Zod
+- **Notifications**: Sonner
+- **Icons**: Lucide React
+
+## 📦 Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone <your-repo-url>
+   cd church_dashboard
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Set up Firebase**
+   - Create a new Firebase project at [Firebase Console](https://console.firebase.google.com/)
+   - Enable Authentication (Email/Password + Google)
+   - Enable Firestore Database
+   - Enable Storage
+   - Get your Firebase config
+
+4. **Environment Variables**
+   Create a `.env.local` file in the root directory:
+   ```env
+   # Firebase Configuration
+   NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key_here
+   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+   NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=123456789
+   NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id_here
+
+   # App Configuration
+   NEXT_PUBLIC_APP_NAME="RCCG Place of Victory Admin"
+   NEXT_PUBLIC_APP_URL=http://localhost:3000
+   ```
+
+5. **Run the development server**
+   ```bash
+   npm run dev
+   ```
+
+6. **Open your browser**
+   Navigate to [http://localhost:3000](http://localhost:3000)
+
+## 🔧 Firebase Setup
+
+### Authentication
+1. Go to Firebase Console > Authentication
+2. Enable Email/Password authentication
+3. Enable Google authentication
+4. Add your domain to authorized domains
+
+### Firestore Database
+1. Go to Firebase Console > Firestore Database
+2. Create database in production mode
+3. Set up security rules (see below)
+
+### Storage
+1. Go to Firebase Console > Storage
+2. Create storage bucket
+3. Set up security rules (see below)
+
+### Security Rules
+
+**Firestore Rules:**
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow authenticated users to read/write
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Storage Rules:**
+```javascript
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow authenticated users to upload/delete images
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🚀 Deployment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Vercel Deployment
 
-## Learn More
+1. **Push to GitHub**
+   ```bash
+   git add .
+   git commit -m "Initial commit"
+   git push origin main
+   ```
 
-To learn more about Next.js, take a look at the following resources:
+2. **Deploy to Vercel**
+   - Connect your GitHub repository to Vercel
+   - Add environment variables in Vercel dashboard
+   - Deploy
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+3. **Environment Variables in Vercel**
+   Add all your Firebase environment variables in the Vercel dashboard under Settings > Environment Variables.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Build Script
+The project includes a Vercel build script in `package.json`:
+```json
+{
+  "scripts": {
+    "vercel-build": "next build"
+  }
+}
+```
 
-## Deploy on Vercel
+## 📱 Usage
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### First Time Setup
+1. Visit the admin dashboard
+2. Sign up with email/password or Google
+3. Start adding content through the dashboard
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Content Management
+- **Leaders**: Add church leaders with photos and bios
+- **Events**: Schedule events with dates, times, and locations
+- **Gallery**: Upload community photos with categories
+- **Testimonies**: Share member stories
+- **Settings**: Configure site-wide settings
+
+### Image Upload
+- Supported formats: JPG, PNG, GIF, WebP
+- Automatic compression and optimization
+- Progress tracking during upload
+- Organized by folders (leaders, gallery, testimonies)
+
+## 🔒 Security Features
+
+- Protected routes with authentication
+- Firebase security rules
+- Form validation and sanitization
+- Secure image upload with type checking
+- Environment variable protection
+
+## 📊 Free Tier Limits
+
+### Firebase Free Tier
+- **Authentication**: 10,000 users/month
+- **Firestore**: 1GB storage, 50,000 reads/day, 20,000 writes/day
+- **Storage**: 5GB storage, 1GB downloads/day
+
+### Vercel Free Tier
+- **Bandwidth**: 100GB/month
+- **Builds**: 6,000 minutes/month
+- **Functions**: 100GB-hours/month
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+1. **Firebase config errors**
+   - Ensure all environment variables are set correctly
+   - Check Firebase project settings
+
+2. **Image upload failures**
+   - Verify Firebase Storage rules
+   - Check file size limits (5MB recommended)
+
+3. **Authentication issues**
+   - Ensure domain is added to Firebase authorized domains
+   - Check Google OAuth configuration
+
+### Development Tips
+
+- Use browser dev tools to check for console errors
+- Monitor Firebase console for usage and errors
+- Check Vercel deployment logs for build issues
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+## 🆘 Support
+
+For support, please contact the development team or create an issue in the repository.
+
+---
+
+**Built with ❤️ for RCCG Place of Victory**
