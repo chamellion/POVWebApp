@@ -10,7 +10,9 @@ import {
   orderBy,
   writeBatch,
   serverTimestamp,
-  Timestamp 
+  Timestamp,
+  onSnapshot,
+  Unsubscribe
 } from 'firebase/firestore';
 import { db } from '../firebase';
 
@@ -100,9 +102,43 @@ export async function getAllCarouselSlides(): Promise<CarouselSlide[]> {
   })) as CarouselSlide[];
 }
 
+// Real-time listener for carousel slides
+export function subscribeToCarouselSlides(
+  callback: (slides: CarouselSlide[]) => void,
+  includeHidden: boolean = false
+): Unsubscribe {
+  let q;
+  
+  if (includeHidden) {
+    q = query(
+      collection(db, carouselCollection),
+      orderBy('order', 'asc')
+    );
+  } else {
+    q = query(
+      collection(db, carouselCollection),
+      where('isVisible', '==', true),
+      orderBy('order', 'asc')
+    );
+  }
+  
+  return onSnapshot(q, (snapshot) => {
+    const slides = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as CarouselSlide[];
+    callback(slides);
+  });
+}
+
 export async function addCarouselSlide(slide: Omit<CarouselSlide, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> {
+  // Get the current highest order to assign the next order value
+  const existingSlides = await getAllCarouselSlides();
+  const nextOrder = existingSlides.length;
+  
   const docRef = await addDoc(collection(db, carouselCollection), {
     ...slide,
+    order: slide.order ?? nextOrder, // Use provided order or next available
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   });
