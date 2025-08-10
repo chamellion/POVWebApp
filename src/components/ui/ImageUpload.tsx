@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -102,9 +103,11 @@ export function ImageUpload({
         <Card>
           <CardContent className="p-4">
             <div className="relative">
-              <img
+              <Image
                 src={previewUrl}
                 alt="Preview"
+                width={400}
+                height={192}
                 className="w-full h-48 object-cover rounded-lg"
               />
               <Button

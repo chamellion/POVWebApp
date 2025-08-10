@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -147,9 +148,11 @@ function DraggableSlide({
       <CardContent>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="md:col-span-1">
-            <img
+            <Image
               src={slide.imageUrl}
               alt={slide.headline}
+              width={400}
+              height={128}
               className="w-full h-32 object-cover rounded-lg"
             />
           </div>

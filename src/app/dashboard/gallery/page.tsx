@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useProtectedRoute } from '@/hooks/useProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit, Trash2, Image, Eye } from 'lucide-react';
+import { Plus, Edit, Trash2, Image as ImageIcon, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { GalleryItem, getDocuments, deleteDocument, galleryCollection } from '@/lib/firestore';
 import GalleryForm from './GalleryForm';
@@ -108,7 +109,7 @@ export default function GalleryPage() {
             <CardContent className="p-6">
               <div className="flex items-center space-x-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
-                  <Image className="h-6 w-6 text-blue-600" />
+                  <ImageIcon className="h-6 w-6 text-blue-600" />
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Photos</p>
@@ -158,7 +159,7 @@ export default function GalleryPage() {
           <CardContent>
             {filteredItems.length === 0 ? (
               <div className="text-center py-8">
-                <Image className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <ImageIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
                   {selectedCategory === 'all' ? 'No photos yet' : `No photos in ${selectedCategory}`}
                 </h3>
@@ -180,9 +181,11 @@ export default function GalleryPage() {
                 {filteredItems.map((item) => (
                   <Card key={item.id} className="overflow-hidden">
                     <div className="relative aspect-square">
-                      <img
+                      <Image
                         src={item.imageUrl}
                         alt={item.caption}
+                        width={400}
+                        height={400}
                         className="w-full h-full object-cover"
                       />
                       <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-50 transition-all duration-200 flex items-center justify-center">

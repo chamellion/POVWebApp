@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -126,11 +127,13 @@ export default function GalleryForm({ item, onSuccess, onCancel }: GalleryFormPr
             <div className="space-y-4">
               {imagePreview && (
                 <div className="relative">
-                  <img
-                    src={imagePreview}
-                    alt="Preview"
-                    className="w-full h-64 object-cover rounded-lg"
-                  />
+                                  <Image
+                  src={imagePreview}
+                  alt="Preview"
+                  width={400}
+                  height={256}
+                  className="w-full h-64 object-cover rounded-lg"
+                />
                   <Button
                     type="button"
                     variant="destructive"

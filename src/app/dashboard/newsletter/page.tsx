@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Mail, Trash2, Download, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import { NewsletterSignup, getNewsletterSignups, deleteNewsletterSignup, subscribeToNewsletterSignups } from '@/lib/firestore';
+import { Timestamp } from 'firebase/firestore';
 
 export default function NewsletterPage() {
   const { loading } = useProtectedRoute();
@@ -92,7 +93,7 @@ export default function NewsletterPage() {
     window.URL.revokeObjectURL(url);
   };
 
-  const formatDate = (timestamp: any) => {
+  const formatDate = (timestamp: Timestamp | null | undefined) => {
     if (!timestamp) return 'N/A';
     return new Date(timestamp.toMillis()).toLocaleDateString('en-US', {
       year: 'numeric',
