@@ -4,6 +4,25 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,11 +37,11 @@ import { useProtectedRoute } from '@/hooks/useProtectedRoute';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { 
   CarouselSlide, 
-  getAllCarouselSlides, 
   addCarouselSlide, 
   updateCarouselSlide, 
   deleteCarouselSlide,
-  reorderCarouselSlides 
+  reorderCarouselSlides,
+  subscribeToCarouselSlides
 } from '@/lib/firestore/content';
 import { 
   Plus, 
@@ -45,6 +64,135 @@ const carouselSchema = z.object({
 
 type CarouselFormData = z.infer<typeof carouselSchema>;
 
+// Draggable Slide Component
+function DraggableSlide({ 
+  slide, 
+  index, 
+  totalSlides,
+  onEdit, 
+  onDelete, 
+  onToggleVisibility, 
+  onMove 
+}: {
+  slide: CarouselSlide;
+  index: number;
+  totalSlides: number;
+  onEdit: (slide: CarouselSlide) => void;
+  onDelete: (id: string) => void;
+  onToggleVisibility: (slide: CarouselSlide) => void;
+  onMove: (slide: CarouselSlide, direction: 'up' | 'down') => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: slide.id! });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <Card ref={setNodeRef} style={style} className="relative">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <div
+              {...attributes}
+              {...listeners}
+              className="cursor-grab active:cursor-grabbing"
+            >
+              <GripVertical className="h-4 w-4 text-gray-400" />
+            </div>
+            <CardTitle className="text-lg">Slide {index + 1}</CardTitle>
+            <Badge variant={slide.isVisible ? 'default' : 'secondary'}>
+              {slide.isVisible ? 'Visible' : 'Hidden'}
+            </Badge>
+            <Badge variant="outline">Order: {slide.order}</Badge>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onToggleVisibility(slide)}
+            >
+              {slide.isVisible ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onEdit(slide)}
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onDelete(slide.id!)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="md:col-span-1">
+            <img
+              src={slide.imageUrl}
+              alt={slide.headline}
+              className="w-full h-32 object-cover rounded-lg"
+            />
+          </div>
+          <div className="md:col-span-2 space-y-2">
+            <div>
+              <h3 className="font-semibold">{slide.headline}</h3>
+              <p className="text-sm text-muted-foreground">{slide.subheadline}</p>
+            </div>
+            {slide.ctaText && (
+              <div className="flex items-center space-x-2">
+                <Badge variant="outline">{slide.ctaText}</Badge>
+                {slide.ctaLink && (
+                  <span className="text-xs text-muted-foreground">
+                    → {slide.ctaLink}
+                  </span>
+                )}
+              </div>
+            )}
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onMove(slide, 'up')}
+                disabled={index === 0}
+              >
+                <MoveUp className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onMove(slide, 'down')}
+                disabled={index === totalSlides - 1}
+              >
+                <MoveDown className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function CarouselPage() {
   const { loading: authLoading } = useProtectedRoute();
   const [slides, setSlides] = useState<CarouselSlide[]>([]);
@@ -52,6 +200,13 @@ export default function CarouselPage() {
   const [editingSlide, setEditingSlide] = useState<CarouselSlide | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [uploadedImageUrl, setUploadedImageUrl] = useState('');
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const {
     register,
@@ -71,19 +226,41 @@ export default function CarouselPage() {
 
   useEffect(() => {
     if (!authLoading) {
-      loadSlides();
+      // Set up real-time listener for carousel slides
+      const unsubscribe = subscribeToCarouselSlides((data) => {
+        setSlides(data);
+        setLoading(false);
+      }, true); // Include hidden slides for admin view
+
+      // Cleanup subscription on unmount
+      return () => unsubscribe();
     }
   }, [authLoading]);
 
-  const loadSlides = async () => {
-    try {
-      const data = await getAllCarouselSlides();
-      setSlides(data);
-    } catch (error) {
-      toast.error('Failed to load carousel slides');
-      console.error('Error loading slides:', error);
-    } finally {
-      setLoading(false);
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (active.id !== over?.id) {
+      const oldIndex = slides.findIndex(slide => slide.id === active.id);
+      const newIndex = slides.findIndex(slide => slide.id === over?.id);
+
+      const newSlides = arrayMove(slides, oldIndex, newIndex);
+      
+      // Update local state immediately for smooth UI
+      setSlides(newSlides);
+      
+      // Update orders and persist to Firestore
+      const updatedSlides = newSlides.map((slide, index) => ({ ...slide, order: index }));
+      
+      try {
+        await reorderCarouselSlides(updatedSlides.map(s => ({ id: s.id!, order: s.order })));
+        toast.success('Slides reordered successfully');
+      } catch (error) {
+        toast.error('Failed to reorder slides');
+        console.error('Error reordering slides:', error);
+        // Revert local state on error
+        setSlides(slides);
+      }
     }
   };
 
@@ -112,7 +289,6 @@ export default function CarouselPage() {
       setUploadedImageUrl('');
       setEditingSlide(null);
       setIsDialogOpen(false);
-      loadSlides();
     } catch (error) {
       toast.error('Failed to save slide');
       console.error('Error saving slide:', error);
@@ -136,7 +312,6 @@ export default function CarouselPage() {
     try {
       await deleteCarouselSlide(id);
       toast.success('Slide deleted successfully');
-      loadSlides();
     } catch (error) {
       toast.error('Failed to delete slide');
       console.error('Error deleting slide:', error);
@@ -147,7 +322,6 @@ export default function CarouselPage() {
     try {
       await updateCarouselSlide(slide.id!, { isVisible: !slide.isVisible });
       toast.success(`Slide ${slide.isVisible ? 'hidden' : 'shown'} successfully`);
-      loadSlides();
     } catch (error) {
       toast.error('Failed to update slide visibility');
       console.error('Error updating slide:', error);
@@ -175,7 +349,6 @@ export default function CarouselPage() {
     try {
       await reorderCarouselSlides(updatedSlides.map(s => ({ id: s.id!, order: s.order })));
       toast.success('Slides reordered successfully');
-      loadSlides();
     } catch (error) {
       toast.error('Failed to reorder slides');
       console.error('Error reordering slides:', error);
@@ -206,7 +379,7 @@ export default function CarouselPage() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Manage Carousel</h1>
             <p className="text-gray-600 mt-2">
-              Manage homepage carousel slides and their content
+              Manage homepage carousel slides and their content. Drag slides to reorder them.
             </p>
           </div>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -302,95 +475,31 @@ export default function CarouselPage() {
           </Dialog>
         </div>
 
-        <div className="grid gap-4">
-          {slides.map((slide, index) => (
-            <Card key={slide.id} className="relative">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <GripVertical className="h-4 w-4 text-gray-400" />
-                    <CardTitle className="text-lg">Slide {index + 1}</CardTitle>
-                    <Badge variant={slide.isVisible ? 'default' : 'secondary'}>
-                      {slide.isVisible ? 'Visible' : 'Hidden'}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleToggleVisibility(slide)}
-                    >
-                      {slide.isVisible ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEdit(slide)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDelete(slide.id!)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="md:col-span-1">
-                    <img
-                      src={slide.imageUrl}
-                      alt={slide.headline}
-                      className="w-full h-32 object-cover rounded-lg"
-                    />
-                  </div>
-                  <div className="md:col-span-2 space-y-2">
-                    <div>
-                      <h3 className="font-semibold">{slide.headline}</h3>
-                      <p className="text-sm text-muted-foreground">{slide.subheadline}</p>
-                    </div>
-                    {slide.ctaText && (
-                      <div className="flex items-center space-x-2">
-                        <Badge variant="outline">{slide.ctaText}</Badge>
-                        {slide.ctaLink && (
-                          <span className="text-xs text-muted-foreground">
-                            → {slide.ctaLink}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleMove(slide, 'up')}
-                        disabled={index === 0}
-                      >
-                        <MoveUp className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleMove(slide, 'down')}
-                        disabled={index === slides.length - 1}
-                      >
-                        <MoveDown className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={slides.map(slide => slide.id!)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="grid gap-4">
+              {slides.map((slide, index) => (
+                <DraggableSlide
+                  key={slide.id}
+                  slide={slide}
+                  index={index}
+                  totalSlides={slides.length}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  onToggleVisibility={handleToggleVisibility}
+                  onMove={handleMove}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
 
         {slides.length === 0 && (
           <Card>

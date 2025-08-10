@@ -15,11 +15,12 @@ A modern, responsive admin dashboard for managing church content, built with Nex
 
 ## 📋 Content Modules
 
-1. **Leaders**: Manage church leaders with photos, roles, and bios
-2. **Events**: Schedule and manage church events and service times
-3. **Gallery**: Upload and organize community photos by category
-4. **Testimonies**: Share member stories and testimonies
-5. **Settings**: Configure site-wide settings and social links
+1. **Carousel**: Manage homepage carousel slides with drag-and-drop reordering
+2. **Leaders**: Manage church leaders with photos, roles, and bios
+3. **Events**: Schedule and manage church events and service times
+4. **Gallery**: Upload and organize community photos by category
+5. **Testimonies**: Share member stories and testimonies
+6. **Settings**: Configure site-wide settings and social links
 
 ## 🛠️ Tech Stack
 
@@ -33,6 +34,54 @@ A modern, responsive admin dashboard for managing church content, built with Nex
 - **Forms**: React Hook Form + Zod
 - **Notifications**: Sonner
 - **Icons**: Lucide React
+- **Drag & Drop**: @dnd-kit/core, @dnd-kit/sortable
+
+## 🎠 Carousel Management
+
+The carousel management system provides a comprehensive solution for managing homepage carousel slides with the following features:
+
+### Key Features
+- **Real-time Updates**: Changes are reflected immediately across all connected clients
+- **Drag & Drop Reordering**: Intuitive drag-and-drop interface for reordering slides
+- **Order Persistence**: Slide order is automatically saved to Firestore
+- **Batch Updates**: Efficient batch operations for optimal performance
+- **Visual Feedback**: Order badges and drag handles for clear user guidance
+
+### Technical Implementation
+- **Firestore Integration**: Uses `orderBy('order', 'asc')` queries for consistent ordering
+- **Real-time Listeners**: `onSnapshot` listeners for instant updates
+- **Batch Operations**: `writeBatch` for efficient order updates
+- **Error Handling**: Graceful error handling with user feedback
+- **Optimistic Updates**: UI updates immediately for smooth user experience
+
+### Usage
+1. **Adding Slides**: New slides are automatically assigned the next available order number
+2. **Reordering**: Drag slides using the grip handle or use move up/down buttons
+3. **Editing**: Click the edit button to modify slide content while preserving order
+4. **Visibility**: Toggle slide visibility without affecting order
+5. **Deletion**: Remove slides with automatic order recalculation
+
+## 📅 Events Management
+
+The events management system provides comprehensive event handling for church events and service times.
+
+### Key Features
+- **Event Management**: Create, edit, and delete church events
+- **Real-time Updates**: Live synchronization with Firestore
+- **Event Statistics**: Track total events and upcoming events
+- **Responsive Design**: Works seamlessly across all devices
+
+### Technical Implementation
+- **Firestore Integration**: Direct database operations for event management
+- **Real-time Updates**: Live synchronization with Firestore
+- **Error Handling**: Graceful fallbacks with user-friendly error messages
+- **Type Safety**: Full TypeScript support with proper event interfaces
+
+### Usage
+1. **Adding Events**: Create custom events with full details
+2. **Event Management**: Edit and delete events as needed
+3. **Event Display**: View all events in a clean, organized table
+4. **Statistics**: Monitor total events and upcoming events
 
 ## 📦 Installation
 

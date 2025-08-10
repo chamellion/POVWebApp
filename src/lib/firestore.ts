@@ -59,6 +59,33 @@ export interface Testimony {
   updatedAt?: Timestamp;
 }
 
+export interface RecurringEvent {
+  id?: string;
+  title: string;
+  description: string;
+  location: string;
+  dayOfWeek: number; // 0 = Sunday, 1 = Monday, etc.
+  startTime: string; // e.g. "09:30"
+  endTime: string;   // e.g. "11:00"
+  isActive: boolean;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface NewsletterSignup {
+  id?: string;
+  email: string;
+  createdAt?: Timestamp;
+}
+
+export interface SkippedRecurringEvent {
+  id?: string;
+  recurringEventId: string;
+  skipDate: string; // YYYY-MM-DD format
+  reason?: string;
+  createdAt?: Timestamp;
+}
+
 export interface SiteSettings {
   id?: string;
   homeHeroText: string;
@@ -156,6 +183,9 @@ export const leadersCollection = 'leaders';
 export const pastorsCollection = 'pastors';
 export const teamLeadsCollection = 'teamLeads';
 export const eventsCollection = 'events';
+export const recurringEventsCollection = 'recurringEvents';
+export const newsletterSignupsCollection = 'newsletterSignups';
+export const skippedRecurringEventsCollection = 'skippedRecurringEvents';
 export const galleryCollection = 'gallery';
 export const testimoniesCollection = 'testimonies';
 export const settingsCollection = 'settings';
@@ -317,4 +347,159 @@ export const findLeaderByCustomId = async (customId: number): Promise<Leader | n
     console.error('Error finding leader by custom ID:', error);
     return null;
   }
+};
+
+// Recurring Events utilities
+export const getRecurringEvents = async (): Promise<RecurringEvent[]> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  const q = query(collection(db, recurringEventsCollection), orderBy('dayOfWeek', 'asc'));
+  const querySnapshot = await getDocs(q);
+  
+  return querySnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  })) as RecurringEvent[];
+};
+
+export const createRecurringEvent = async (eventData: Omit<RecurringEvent, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  const docRef = await addDoc(collection(db, recurringEventsCollection), {
+    ...eventData,
+    createdAt: Timestamp.now(),
+    updatedAt: Timestamp.now(),
+  });
+  return docRef.id;
+};
+
+export const updateRecurringEvent = async (event: RecurringEvent): Promise<void> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  const docRef = doc(db, recurringEventsCollection, event.id!);
+  await updateDoc(docRef, {
+    ...event,
+    updatedAt: Timestamp.now(),
+  });
+};
+
+export const deleteRecurringEvent = async (event: RecurringEvent): Promise<void> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  const docRef = doc(db, recurringEventsCollection, event.id!);
+  await deleteDoc(docRef);
+};
+
+// Newsletter Signups utilities
+export const getNewsletterSignups = async (): Promise<NewsletterSignup[]> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  const q = query(collection(db, newsletterSignupsCollection), orderBy('createdAt', 'desc'));
+  const querySnapshot = await getDocs(q);
+  
+  return querySnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  })) as NewsletterSignup[];
+};
+
+export const createNewsletterSignup = async (email: string): Promise<string> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  const docRef = await addDoc(collection(db, newsletterSignupsCollection), {
+    email,
+    createdAt: Timestamp.now(),
+  });
+  return docRef.id;
+};
+
+export const deleteNewsletterSignup = async (id: string): Promise<void> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  const docRef = doc(db, newsletterSignupsCollection, id);
+  await deleteDoc(docRef);
+};
+
+// Real-time listeners for newsletter signups
+export const subscribeToNewsletterSignups = (
+  callback: (data: NewsletterSignup[]) => void
+) => {
+  if (!db) throw new Error('Firestore is not initialized');
+  const q = query(collection(db, newsletterSignupsCollection), orderBy('createdAt', 'desc'));
+  
+  return onSnapshot(q, (querySnapshot) => {
+    const data = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as NewsletterSignup[];
+    callback(data);
+  });
+};
+
+// Skipped Recurring Events utilities
+export const getSkippedRecurringEvents = async (): Promise<SkippedRecurringEvent[]> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  const q = query(collection(db, skippedRecurringEventsCollection), orderBy('skipDate', 'desc'));
+  const querySnapshot = await getDocs(q);
+  
+  return querySnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  })) as SkippedRecurringEvent[];
+};
+
+export const createSkippedRecurringEvent = async (skipData: Omit<SkippedRecurringEvent, 'id' | 'createdAt'>): Promise<string> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  const docRef = await addDoc(collection(db, skippedRecurringEventsCollection), {
+    ...skipData,
+    createdAt: Timestamp.now(),
+  });
+  return docRef.id;
+};
+
+export const deleteSkippedRecurringEvent = async (id: string): Promise<void> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  const docRef = doc(db, skippedRecurringEventsCollection, id);
+  await deleteDoc(docRef);
+};
+
+// Utility function to generate upcoming events from recurring events
+export const generateUpcomingRecurringEvents = async (recurringEvents: RecurringEvent[], weeksAhead: number = 4): Promise<Event[]> => {
+  const upcomingEvents: Event[] = [];
+  const today = new Date();
+  const endDate = new Date();
+  endDate.setDate(today.getDate() + (weeksAhead * 7));
+
+  // Get skipped events to exclude them
+  const skippedEvents = await getSkippedRecurringEvents();
+  const skippedDates = new Set(skippedEvents.map(skip => skip.skipDate));
+
+  recurringEvents.forEach(recurringEvent => {
+    if (!recurringEvent.isActive) return;
+
+    const currentDate = new Date(today);
+    
+    // Find the next occurrence of this day of week
+    while (currentDate.getDay() !== recurringEvent.dayOfWeek) {
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Generate events for the next few weeks
+    while (currentDate <= endDate) {
+      const eventDate = currentDate.toISOString().split('T')[0];
+      
+      // Skip this event if it's in the skipped dates
+      if (!skippedDates.has(eventDate)) {
+        upcomingEvents.push({
+          id: `recurring-${recurringEvent.id}-${eventDate}`,
+          title: recurringEvent.title,
+          description: recurringEvent.description,
+          location: recurringEvent.location,
+          date: eventDate,
+          startTime: recurringEvent.startTime,
+          endTime: recurringEvent.endTime,
+          createdAt: recurringEvent.createdAt,
+          updatedAt: recurringEvent.updatedAt,
+        });
+      }
+
+      // Move to next week
+      currentDate.setDate(currentDate.getDate() + 7);
+    }
+  });
+
+  return upcomingEvents;
 }; 
