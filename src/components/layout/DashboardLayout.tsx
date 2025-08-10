@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
 import { 
   Menu, 
   Users, 
@@ -18,29 +19,71 @@ import {
   LogOut, 
   User,
   ChevronDown,
-  Sliders
+  Sliders,
+  Mail,
+  Bell
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { NewsletterSignup, subscribeToNewsletterSignups } from '@/lib/firestore';
 
 interface SidebarItem {
   title: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
+  badge?: number;
 }
-
-const sidebarItems: SidebarItem[] = [
-  { title: 'Carousel', href: '/dashboard/carousel', icon: Sliders },
-  { title: 'Leaders', href: '/dashboard/leaders', icon: Users },
-  { title: 'Events', href: '/dashboard/events', icon: Calendar },
-  { title: 'Gallery', href: '/dashboard/gallery', icon: Image },
-  { title: 'Testimonies', href: '/dashboard/testimonies', icon: MessageSquare },
-  { title: 'Settings', href: '/dashboard/settings', icon: Settings },
-];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [newsletterSignups, setNewsletterSignups] = useState<NewsletterSignup[]>([]);
+  const [lastViewedNewsletterTimestamp, setLastViewedNewsletterTimestamp] = useState<number>(0);
   const pathname = usePathname();
   const { user, logout } = useAuth();
+
+  useEffect(() => {
+    // Load last viewed timestamp from localStorage
+    const stored = localStorage.getItem('lastViewedNewsletterTimestamp');
+    if (stored) {
+      setLastViewedNewsletterTimestamp(parseInt(stored));
+    }
+
+    // Set up real-time listener for newsletter signups
+    const unsubscribe = subscribeToNewsletterSignups((data) => {
+      setNewsletterSignups(data);
+      
+      // Check for new signups and show notification
+      const newSignups = data.filter(signup => 
+        signup.createdAt && signup.createdAt.toMillis() > lastViewedNewsletterTimestamp
+      );
+      
+      if (newSignups.length > 0 && lastViewedNewsletterTimestamp > 0) {
+        toast.success(`${newSignups.length} new newsletter signup${newSignups.length > 1 ? 's' : ''}!`);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [lastViewedNewsletterTimestamp]);
+
+  const getNewSignupsCount = () => {
+    return newsletterSignups.filter(signup => 
+      signup.createdAt && signup.createdAt.toMillis() > lastViewedNewsletterTimestamp
+    ).length;
+  };
+
+  const sidebarItems: SidebarItem[] = [
+    { title: 'Carousel', href: '/dashboard/carousel', icon: Sliders },
+    { title: 'Leaders', href: '/dashboard/leaders', icon: Users },
+    { title: 'Events', href: '/dashboard/events', icon: Calendar },
+    { title: 'Gallery', href: '/dashboard/gallery', icon: Image },
+    { title: 'Testimonies', href: '/dashboard/testimonies', icon: MessageSquare },
+    { 
+      title: 'Newsletter', 
+      href: '/dashboard/newsletter', 
+      icon: Mail,
+      badge: getNewSignupsCount()
+    },
+    { title: 'Settings', href: '/dashboard/settings', icon: Settings },
+  ];
 
   const handleLogout = async () => {
     try {
@@ -76,15 +119,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                 isActive
                   ? 'bg-blue-100 text-blue-700 border-r-2 border-blue-700'
                   : 'text-gray-700 hover:bg-gray-100'
               }`}
               onClick={() => setSidebarOpen(false)}
             >
-              <Icon className="h-5 w-5" />
-              <span>{item.title}</span>
+              <div className="flex items-center space-x-3">
+                <Icon className="h-5 w-5" />
+                <span>{item.title}</span>
+              </div>
+              {item.badge && item.badge > 0 && (
+                <Badge variant="destructive" className="text-xs">
+                  {item.badge}
+                </Badge>
+              )}
             </Link>
           );
         })}
@@ -162,6 +212,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
             <div className="flex flex-1"></div>
             <div className="flex items-center gap-x-4 lg:gap-x-6">
+              {/* Notification Icon */}
+              {getNewSignupsCount() > 0 && (
+                <div className="relative">
+                  <Bell className="h-5 w-5 text-gray-600" />
+                  <Badge 
+                    variant="destructive" 
+                    className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs"
+                  >
+                    {getNewSignupsCount()}
+                  </Badge>
+                </div>
+              )}
               {/* Mobile menu button */}
               <Button
                 variant="ghost"
