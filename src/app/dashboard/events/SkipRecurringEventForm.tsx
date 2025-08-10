@@ -6,12 +6,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { RecurringEvent, SkippedRecurringEvent, createSkippedRecurringEvent } from '@/lib/firestore';
+import { RecurringEvent, createSkippedRecurringEvent } from '@/lib/firestore';
 
 const skipEventSchema = z.object({
   skipDate: z.string().min(1, 'Skip date is required'),

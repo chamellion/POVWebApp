@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { RecurringEvent, createRecurringEvent, updateRecurringEvent, recurringEventsCollection } from '@/lib/firestore';
+import { RecurringEvent, createRecurringEvent, updateRecurringEvent } from '@/lib/firestore';
 
 const recurringEventSchema = z.object({
   title: z.string().min(1, 'Title is required'),
