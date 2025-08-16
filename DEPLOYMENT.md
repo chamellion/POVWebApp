@@ -28,7 +28,7 @@
 2. **Enable Authentication**
    - Go to Authentication > Sign-in method
    - Enable Email/Password
-   - Enable Google (configure OAuth consent screen)
+   
 
 3. **Create Firestore Database**
    - Go to Firestore Database
@@ -164,7 +164,7 @@
 ### Authentication Issues
 - Check Firebase config in environment variables
 - Verify domain is in authorized domains
-- Test Google OAuth configuration
+
 
 ### Image Upload Problems
 - Check Firebase Storage rules

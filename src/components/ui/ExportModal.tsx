@@ -6,36 +6,38 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
-import { FileText, FileDown, Upload, Loader2, ExternalLink } from 'lucide-react';
+import { FileText, FileDown, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Testimony } from '@/lib/firestore';
+import { Testimony, PrayerRequest } from '@/lib/firestore';
 import { 
   exportToPDF, 
   exportToWord, 
-  uploadToGoogleDrive, 
+  exportPrayerRequestsToPDF,
+  exportPrayerRequestsToWord,
   downloadFile, 
   generateFileName,
   ExportOptions 
 } from '@/lib/utils/exportUtils';
-import { logTestimonyExport } from '@/lib/firestore';
+import { logTestimonyExport, logPrayerRequestExport } from '@/lib/firestore';
 import { useAuth } from '@/contexts/AuthContext';
-import { initiateGoogleOAuth, validateOAuthConfig } from '@/lib/config/googleOAuth';
 
 interface ExportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  testimonies: Testimony[];
-  selectedTestimonies: string[];
+  items: (Testimony | PrayerRequest)[];
+  exportType?: 'testimonies' | 'prayer_requests';
+  onExportSuccess?: () => void;
 }
 
 export default function ExportModal({ 
   isOpen, 
   onClose, 
-  testimonies, 
-  selectedTestimonies 
+  items, 
+  exportType: contentType = 'testimonies',
+  onExportSuccess
 }: ExportModalProps) {
   const { user } = useAuth();
-  const [exportType, setExportType] = useState<'pdf' | 'word' | 'google_drive'>('word');
+  const [exportType, setExportType] = useState<'pdf' | 'word'>('word');
   const [isExporting, setIsExporting] = useState(false);
   const [isPdfLoading, setIsPdfLoading] = useState(false);
   const [pdfAvailable, setPdfAvailable] = useState(true);
@@ -46,7 +48,6 @@ export default function ExportModal({
     churchName: 'RCCG POV',
     churchLogo: ''
   });
-  const [googleDriveToken, setGoogleDriveToken] = useState('');
 
   // Check PDF availability on mount
   useEffect(() => {
@@ -70,40 +71,11 @@ export default function ExportModal({
     checkPdfAvailability();
   }, [exportType]);
 
-  // Handle OAuth callback message
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data.type === 'GOOGLE_OAUTH_SUCCESS') {
-        const { tokens } = event.data;
-        setGoogleDriveToken(tokens.access_token);
-        toast.success('Google Drive connected successfully!');
-      }
-    };
 
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, []);
 
-  const testimoniesToExport = selectedTestimonies.length > 0 
-    ? testimonies.filter(t => selectedTestimonies.includes(t.id!))
-    : testimonies;
+  const itemsToExport = items;
 
-  const handleGoogleOAuth = () => {
-    try {
-      // Validate OAuth configuration first
-      const configValidation = validateOAuthConfig();
-      if (!configValidation.isValid) {
-        toast.error(`Google OAuth not configured: ${configValidation.errors.join(', ')}`);
-        return;
-      }
 
-      const authUrl = initiateGoogleOAuth();
-      window.open(authUrl, '_blank', 'width=600,height=600');
-    } catch (error) {
-      console.error('Google OAuth error:', error);
-      toast.error(`Failed to initiate Google OAuth: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
 
   const handleExport = async () => {
     if (!user) {
@@ -120,8 +92,15 @@ export default function ExportModal({
         case 'pdf':
           try {
             setIsPdfLoading(true);
-            file = await exportToPDF(testimoniesToExport, exportOptions);
-            fileName = generateFileName('testimonies', 'pdf');
+            if (contentType === 'testimonies') {
+              file = await exportToPDF(itemsToExport as Testimony[], exportOptions);
+            } else if (contentType === 'prayer_requests') {
+              file = await exportPrayerRequestsToPDF(itemsToExport as PrayerRequest[], exportOptions);
+            } else {
+              toast.error('PDF export not supported for this content type.');
+              return;
+            }
+            fileName = generateFileName(contentType, 'pdf');
             downloadFile(file, fileName);
           } catch (error) {
             console.error('PDF export error:', error);
@@ -134,21 +113,19 @@ export default function ExportModal({
           break;
 
         case 'word':
-          file = await exportToWord(testimoniesToExport, exportOptions);
-          fileName = generateFileName('testimonies', 'docx');
+          if (contentType === 'testimonies') {
+            file = await exportToWord(itemsToExport as Testimony[], exportOptions);
+          } else if (contentType === 'prayer_requests') {
+            file = await exportPrayerRequestsToWord(itemsToExport as PrayerRequest[], exportOptions);
+          } else {
+            toast.error('Word export not supported for this content type.');
+            return;
+          }
+          fileName = generateFileName(contentType, 'docx');
           downloadFile(file, fileName);
           break;
 
-        case 'google_drive':
-          if (!googleDriveToken) {
-            toast.error('Google Drive access token required');
-            return;
-          }
-          file = await exportToWord(testimoniesToExport, exportOptions);
-          fileName = generateFileName('testimonies', 'docx');
-          const fileId = await uploadToGoogleDrive(file, fileName, googleDriveToken);
-          toast.success(`Uploaded to Google Drive! File ID: ${fileId}`);
-          break;
+
       }
 
       // Log the export (optional - don't block export if logging fails)
@@ -161,12 +138,21 @@ export default function ExportModal({
       // Only attempt to log if user is still authenticated
       if (user?.uid && user?.email) {
         try {
-          await logTestimonyExport({
-            adminId: user.uid,
-            adminEmail: user.email,
-            exportType,
-            testimonyIds: testimoniesToExport.map(t => t.id!)
-          });
+          if (contentType === 'testimonies') {
+            await logTestimonyExport({
+              adminId: user.uid,
+              adminEmail: user.email,
+              exportType,
+              testimonyIds: itemsToExport.map(t => t.id!)
+            });
+          } else if (contentType === 'prayer_requests') {
+            await logPrayerRequestExport({
+              adminId: user.uid,
+              adminEmail: user.email,
+              exportType: exportType,
+              prayerRequestIds: itemsToExport.map(t => t.id!)
+            });
+          }
           console.log('✅ Export logged successfully');
         } catch (loggingError) {
           console.warn('⚠️ Export logging failed (export still successful):', loggingError);
@@ -174,7 +160,7 @@ export default function ExportModal({
             error: loggingError,
             userState: { uid: user?.uid, email: user?.email },
             exportType,
-            testimonyCount: testimoniesToExport.length
+            itemCount: itemsToExport.length
           });
           // Don't show error to user since export succeeded
         }
@@ -185,11 +171,19 @@ export default function ExportModal({
         });
       }
 
-      toast.success(`Testimonies exported successfully as ${exportType.toUpperCase()}`);
+      const contentTypeText = contentType === 'testimonies' ? 'Testimonies' : 'Prayer requests';
+      toast.success(`${contentTypeText} exported successfully as ${exportType.toUpperCase()}`);
+      
+      // Call the success callback if provided
+      if (onExportSuccess) {
+        onExportSuccess();
+      }
+      
       onClose();
     } catch (error) {
       console.error('Export error:', error);
-      toast.error(`Failed to export testimonies: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const contentTypeText = contentType === 'testimonies' ? 'testimonies' : 'prayer requests';
+      toast.error(`Failed to export ${contentTypeText}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsExporting(false);
     }
@@ -201,8 +195,6 @@ export default function ExportModal({
         return <FileText className="h-5 w-5" />;
       case 'word':
         return <FileDown className="h-5 w-5" />;
-      case 'google_drive':
-        return <Upload className="h-5 w-5" />;
       default:
         return <FileText className="h-5 w-5" />;
     }
@@ -216,8 +208,7 @@ export default function ExportModal({
         return 'Download PDF';
       case 'word':
         return 'Download Word Document';
-      case 'google_drive':
-        return 'Upload to Google Drive';
+      
       default:
         return 'Export';
     }
@@ -237,8 +228,7 @@ export default function ExportModal({
             <div className="grid grid-cols-3 gap-2">
               {[
                 { value: 'pdf' as const, label: 'PDF', icon: FileText, disabled: !pdfAvailable || isCheckingPdf },
-                { value: 'word' as const, label: 'Word', icon: FileDown, disabled: false },
-                { value: 'google_drive' as const, label: 'Drive', icon: Upload, disabled: false }
+                { value: 'word' as const, label: 'Word', icon: FileDown, disabled: false }
               ].map(({ value, label, icon: Icon, disabled }) => (
                 <Button
                   key={value}
@@ -321,45 +311,12 @@ export default function ExportModal({
             </div>
           </div>
 
-          {/* Google Drive Token Input */}
-          {exportType === 'google_drive' && (
-            <div className="space-y-2">
-              <Label htmlFor="drive-token" className="text-sm">
-                Google Drive Access
-              </Label>
-              <div className="space-y-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleGoogleOAuth}
-                  className="w-full"
-                >
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Connect Google Drive
-                </Button>
-                <Input
-                  id="drive-token"
-                  type="password"
-                  value={googleDriveToken}
-                  onChange={(e) => setGoogleDriveToken(e.target.value)}
-                  placeholder="Or enter access token manually"
-                />
-                <p className="text-xs text-gray-500">
-                  Connect your Google Drive account or manually enter an access token
-                </p>
-              </div>
-            </div>
-          )}
+
 
           {/* Export Summary */}
           <div className="bg-gray-50 p-3 rounded-lg">
             <p className="text-sm text-gray-600">
-              Exporting {testimoniesToExport.length} testimonie{testimoniesToExport.length !== 1 ? 's' : ''}
-              {selectedTestimonies.length > 0 && (
-                <span className="text-blue-600 font-medium">
-                  {' '}({selectedTestimonies.length} selected)
-                </span>
-              )}
+              Exporting {itemsToExport.length} {contentType === 'testimonies' ? 'testimonie' : 'prayer request'}{itemsToExport.length !== 1 ? 's' : ''}
             </p>
             {exportType === 'pdf' && !pdfAvailable && (
               <p className="text-xs text-red-600 mt-1">
@@ -375,7 +332,7 @@ export default function ExportModal({
             </Button>
             <Button 
               onClick={handleExport} 
-              disabled={isExporting || isPdfLoading || (exportType === 'google_drive' && !googleDriveToken)}
+              disabled={isExporting || isPdfLoading}
               className="min-w-[120px]"
             >
               {isExporting || isPdfLoading ? (

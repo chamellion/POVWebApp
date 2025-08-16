@@ -65,6 +65,15 @@ export default function TestimoniesPage() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   useEffect(() => {
+    // Only set up listeners if user is authenticated
+    if (!user) {
+      console.log('🔐 TestimoniesPage: No user, clearing data and skipping listeners');
+      setTestimonies([]);
+      setFilteredTestimonies([]);
+      setIsLoading(false);
+      return;
+    }
+
     const fetchData = async () => {
       try {
         console.log('🔍 Fetching testimonies...');
@@ -103,7 +112,7 @@ export default function TestimoniesPage() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   // Apply filters and search
   useEffect(() => {
@@ -666,8 +675,15 @@ export default function TestimoniesPage() {
         <ExportModal
           isOpen={showExportModal}
           onClose={() => setShowExportModal(false)}
-          testimonies={testimonies}
-          selectedTestimonies={Array.from(selectedTestimonies)}
+          items={selectedTestimonies.size > 0 
+            ? filteredTestimonies.filter(t => selectedTestimonies.has(t.id!))
+            : filteredTestimonies
+          }
+          exportType="testimonies"
+          onExportSuccess={() => {
+            setShowExportModal(false);
+            setSelectedTestimonies(new Set());
+          }}
         />
       )}
     </DashboardLayout>

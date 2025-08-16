@@ -66,6 +66,19 @@ export interface Testimony {
   updatedAt?: Timestamp;
 }
 
+export interface PrayerRequest {
+  id?: string;
+  name: string | null; // null if anonymous
+  email: string | null; // null if anonymous
+  request: string; // required prayer request text
+  isAnonymous: boolean;
+  isRead: boolean; // default false
+  readBy?: string; // admin userId who marked as read
+  readAt?: Timestamp;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
 export interface RecurringEvent {
   id?: string;
   title: string;
@@ -110,8 +123,17 @@ export interface TestimonyExport {
   id?: string;
   adminId: string;
   adminEmail: string;
-  exportType: 'pdf' | 'google_drive' | 'word';
+  exportType: 'pdf' | 'word';
   testimonyIds: string[];
+  exportedAt?: Timestamp;
+}
+
+export interface PrayerRequestExport {
+  id?: string;
+  adminId: string;
+  adminEmail: string;
+  exportType: 'pdf' | 'word';
+  prayerRequestIds: string[];
   exportedAt?: Timestamp;
 }
 
@@ -205,6 +227,8 @@ export const skippedRecurringEventsCollection = 'skippedRecurringEvents';
 export const galleryCollection = 'gallery';
 export const testimoniesCollection = 'testimonies';
 export const testimoniesExportsCollection = 'testimonies_exports';
+export const prayerRequestsCollection = 'prayerRequests';
+export const prayerRequestsExportsCollection = 'prayer_requests_exports';
 export const settingsCollection = 'settings';
 
 // Leader-specific utilities
@@ -700,3 +724,161 @@ export const getTestimonyExports = async (): Promise<TestimonyExport[]> => {
     ...doc.data()
   })) as TestimonyExport[];
 }; 
+
+// Prayer Request Management Functions
+export const getPrayerRequestsWithFilters = async (
+  filters: {
+    searchTerm?: string;
+    filterType?: 'all' | 'anonymous' | 'non-anonymous' | 'unread' | 'read';
+    dateFrom?: string;
+    dateTo?: string;
+  } = {}
+): Promise<PrayerRequest[]> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  
+  const q = query(collection(db, prayerRequestsCollection), orderBy('createdAt', 'desc'));
+  const querySnapshot = await getDocs(q);
+  let prayerRequests = querySnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  })) as PrayerRequest[];
+  
+  // Apply filters
+  if (filters.searchTerm) {
+    prayerRequests = prayerRequests.filter(request => 
+      (request.name && request.name.toLowerCase().includes(filters.searchTerm!.toLowerCase())) ||
+      request.request.toLowerCase().includes(filters.searchTerm!.toLowerCase()) ||
+      (request.email && request.email.toLowerCase().includes(filters.searchTerm!.toLowerCase()))
+    );
+  }
+  
+  if (filters.filterType && filters.filterType !== 'all') {
+    switch (filters.filterType) {
+      case 'anonymous':
+        prayerRequests = prayerRequests.filter(request => request.isAnonymous);
+        break;
+      case 'non-anonymous':
+        prayerRequests = prayerRequests.filter(request => !request.isAnonymous);
+        break;
+      case 'unread':
+        prayerRequests = prayerRequests.filter(request => !request.isRead);
+        break;
+      case 'read':
+        prayerRequests = prayerRequests.filter(request => request.isRead);
+        break;
+    }
+  }
+  
+  if (filters.dateFrom || filters.dateTo) {
+    prayerRequests = prayerRequests.filter(request => {
+      if (!request.createdAt) return false;
+      const requestDate = request.createdAt.toDate();
+      const fromDate = filters.dateFrom ? new Date(filters.dateFrom) : null;
+      const toDate = filters.dateTo ? new Date(filters.dateTo) : null;
+      
+      if (fromDate && requestDate < fromDate) return false;
+      if (toDate && requestDate > toDate) return false;
+      
+      return true;
+    });
+  }
+  
+  return prayerRequests;
+};
+
+export const markPrayerRequestAsRead = async (
+  requestId: string, 
+  adminId: string, 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  adminEmail: string
+): Promise<void> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  
+  const docRef = doc(db, prayerRequestsCollection, requestId);
+  await updateDoc(docRef, {
+    isRead: true,
+    readBy: adminId,
+    readAt: Timestamp.now(),
+    updatedAt: Timestamp.now(),
+  });
+};
+
+export const markMultiplePrayerRequestsAsRead = async (
+  requestIds: string[], 
+  adminId: string, 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  adminEmail: string
+): Promise<void> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  
+  const batch = writeBatch(db);
+  
+  requestIds.forEach(requestId => {
+    const docRef = doc(db, prayerRequestsCollection, requestId);
+    batch.update(docRef, {
+      isRead: true,
+      readBy: adminId,
+      readAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+  });
+  
+  await batch.commit();
+};
+
+export const subscribeToPrayerRequests = (
+  callback: (data: PrayerRequest[]) => void
+) => {
+  if (!db) throw new Error('Firestore is not initialized');
+  const q = query(collection(db, prayerRequestsCollection), orderBy('createdAt', 'desc'));
+  
+  return onSnapshot(q, (querySnapshot) => {
+    const data = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as PrayerRequest[];
+    callback(data);
+  });
+};
+
+export const getUnreadPrayerRequestsCount = async (): Promise<number> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  
+  const q = query(collection(db, prayerRequestsCollection), where('isRead', '==', false));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.size;
+};
+
+export const logPrayerRequestExport = async (
+  exportData: Omit<PrayerRequestExport, 'id' | 'exportedAt'>
+): Promise<string> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  
+  // Validate export data
+  if (!exportData.adminId || !exportData.adminEmail) {
+    throw new Error('Invalid export data: missing admin information');
+  }
+  
+  try {
+    const docRef = await addDoc(collection(db, prayerRequestsExportsCollection), {
+      ...exportData,
+      exportedAt: Timestamp.now(),
+    });
+    
+    return docRef.id;
+  } catch (error) {
+    console.error('Failed to log prayer request export:', error);
+    throw error;
+  }
+};
+
+export const getPrayerRequestExports = async (): Promise<PrayerRequestExport[]> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  const q = query(collection(db, prayerRequestsExportsCollection), orderBy('exportedAt', 'desc'));
+  const querySnapshot = await getDocs(q);
+  
+  return querySnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  })) as PrayerRequestExport[];
+};

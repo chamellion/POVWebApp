@@ -5,23 +5,30 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { FileText, FileDown, Upload, Download } from 'lucide-react';
+import { FileText, FileDown, Download } from 'lucide-react';
 import { toast } from 'sonner';
-import { TestimonyExport, getTestimonyExports } from '@/lib/firestore';
+import { TestimonyExport, getTestimonyExports, PrayerRequestExport, getPrayerRequestExports } from '@/lib/firestore';
 import { format } from 'date-fns';
 
 interface ExportHistoryProps {
-  testimonies: Array<{ id?: string; name?: string; isAnonymous?: boolean }>; // Type for testimonies lookup
+  testimonies?: Array<{ id?: string; name?: string; isAnonymous?: boolean }>; // Type for testimonies lookup
+  prayerRequests?: Array<{ id?: string; name?: string | null; isAnonymous?: boolean }>; // Type for prayer requests lookup
+  collection?: 'testimonies_exports' | 'prayer_requests_exports';
 }
 
-export default function ExportHistory({ testimonies }: ExportHistoryProps) {
-  const [exports, setExports] = useState<TestimonyExport[]>([]);
+export default function ExportHistory({ testimonies, prayerRequests, collection }: ExportHistoryProps) {
+  const [exports, setExports] = useState<(TestimonyExport | PrayerRequestExport)[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchExports = async () => {
       try {
-        const data = await getTestimonyExports();
+        let data;
+        if (collection === 'prayer_requests_exports') {
+          data = await getPrayerRequestExports();
+        } else {
+          data = await getTestimonyExports();
+        }
         setExports(data);
       } catch (error) {
         console.error('Failed to fetch exports:', error);
@@ -32,7 +39,7 @@ export default function ExportHistory({ testimonies }: ExportHistoryProps) {
     };
 
     fetchExports();
-  }, []);
+  }, [collection]);
 
   const getExportTypeIcon = (type: string) => {
     switch (type) {
@@ -40,8 +47,7 @@ export default function ExportHistory({ testimonies }: ExportHistoryProps) {
         return <FileText className="h-4 w-4" />;
       case 'word':
         return <FileDown className="h-4 w-4" />;
-      case 'google_drive':
-        return <Upload className="h-4 w-4" />;
+
       default:
         return <FileText className="h-4 w-4" />;
     }
@@ -50,8 +56,7 @@ export default function ExportHistory({ testimonies }: ExportHistoryProps) {
   const getExportTypeBadge = (type: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       pdf: 'default',
-      word: 'secondary',
-      google_drive: 'outline'
+      word: 'secondary'
     };
 
     return (
@@ -62,29 +67,48 @@ export default function ExportHistory({ testimonies }: ExportHistoryProps) {
     );
   };
 
-  const getTestimonyNames = (testimonyIds: string[]) => {
-    const names = testimonyIds.map(id => {
-      const testimony = testimonies.find(t => t.id === id);
-      return testimony ? (testimony.isAnonymous ? 'Anonymous' : testimony.name) : 'Unknown';
-    });
+  const getItemNames = (itemIds: (string | undefined)[]) => {
+    const validIds = itemIds.filter((id): id is string => id !== undefined);
     
-    if (names.length <= 3) {
-      return names.join(', ');
+    if (collection === 'prayer_requests_exports' && prayerRequests) {
+      const names = validIds.map(id => {
+        const request = prayerRequests.find(r => r.id === id);
+        return request ? (request.isAnonymous ? 'Anonymous' : (request.name || 'Unknown')) : 'Unknown';
+      });
+      
+      if (names.length <= 3) {
+        return names.join(', ');
+      }
+      return `${names.slice(0, 3).join(', ')} +${names.length - 3} more`;
+    } else if (testimonies) {
+      const names = validIds.map(id => {
+        const testimony = testimonies.find(t => t.id === id);
+        return testimony ? (testimony.isAnonymous ? 'Anonymous' : testimony.name) : 'Unknown';
+      });
+      
+      if (names.length <= 3) {
+        return names.join(', ');
+      }
+      return `${names.slice(0, 3).join(', ')} +${names.length - 3} more`;
     }
     
-    return `${names.slice(0, 3).join(', ')} +${names.length - 3} more`;
+    return 'No items';
   };
 
   const downloadExportLog = () => {
+    const itemType = collection === 'prayer_requests_exports' ? 'Prayer Requests' : 'Testimonies';
     const csvContent = [
-      ['Export Date', 'Admin Email', 'Export Type', 'Testimonies Count', 'Testimony IDs'].join(','),
-      ...exports.map(exp => [
-        exp.exportedAt ? format(exp.exportedAt.toDate(), 'yyyy-MM-dd HH:mm:ss') : 'N/A',
-        exp.adminEmail,
-        exp.exportType,
-        exp.testimonyIds.length.toString(),
-        exp.testimonyIds.join(';')
-      ].join(','))
+      ['Export Date', 'Admin Email', 'Export Type', `${itemType} Count`, `${itemType} IDs`].join(','),
+      ...exports.map(exp => {
+        const itemIds = 'testimonyIds' in exp ? exp.testimonyIds : exp.prayerRequestIds;
+        return [
+          exp.exportedAt ? format(exp.exportedAt.toDate(), 'yyyy-MM-dd HH:mm:ss') : 'N/A',
+          exp.adminEmail,
+          exp.exportType,
+          itemIds.length.toString(),
+          itemIds.join(';')
+        ].join(',');
+      })
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -131,7 +155,9 @@ export default function ExportHistory({ testimonies }: ExportHistoryProps) {
           <div className="text-center py-8">
             <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No exports yet</h3>
-            <p className="text-gray-500">Export history will appear here once you export testimonies.</p>
+            <p className="text-gray-500">
+              Export history will appear here once you export {collection === 'prayer_requests_exports' ? 'prayer requests' : 'testimonies'}.
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -141,7 +167,7 @@ export default function ExportHistory({ testimonies }: ExportHistoryProps) {
                   <TableHead>Date</TableHead>
                   <TableHead>Admin</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Testimonies</TableHead>
+                  <TableHead>{collection === 'prayer_requests_exports' ? 'Prayer Requests' : 'Testimonies'}</TableHead>
                   <TableHead>Count</TableHead>
                 </TableRow>
               </TableHeader>
@@ -160,18 +186,24 @@ export default function ExportHistory({ testimonies }: ExportHistoryProps) {
                     <TableCell className="max-w-[300px]">
                       <div className="group relative">
                         <span className="truncate block">
-                          {getTestimonyNames(exp.testimonyIds)}
+                          {getItemNames('testimonyIds' in exp ? exp.testimonyIds : exp.prayerRequestIds)}
                         </span>
                         <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs rounded py-1 px-2 z-10 max-w-xs">
-                          {exp.testimonyIds.map(id => {
-                            const testimony = testimonies.find(t => t.id === id);
-                            return testimony ? (testimony.isAnonymous ? 'Anonymous' : testimony.name) : 'Unknown';
+                          {('testimonyIds' in exp ? exp.testimonyIds : exp.prayerRequestIds).map(id => {
+                            if (collection === 'prayer_requests_exports' && prayerRequests) {
+                              const request = prayerRequests.find(r => r.id === id);
+                              return request ? (request.isAnonymous ? 'Anonymous' : (request.name || 'Unknown')) : 'Unknown';
+                            } else if (testimonies) {
+                              const testimony = testimonies.find(t => t.id === id);
+                              return testimony ? (testimony.isAnonymous ? 'Anonymous' : testimony.name) : 'Unknown';
+                            }
+                            return 'Unknown';
                           }).join(', ')}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{exp.testimonyIds.length}</Badge>
+                      <Badge variant="outline">{('testimonyIds' in exp ? exp.testimonyIds : exp.prayerRequestIds).length}</Badge>
                     </TableCell>
                   </TableRow>
                 ))}

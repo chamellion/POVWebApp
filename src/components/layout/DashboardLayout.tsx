@@ -21,10 +21,11 @@ import {
   ChevronDown,
   Sliders,
   Mail,
-  Bell
+  Bell,
+  Heart
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { NewsletterSignup, subscribeToNewsletterSignups, subscribeToTestimonies } from '@/lib/firestore';
+import { NewsletterSignup, subscribeToNewsletterSignups, subscribeToTestimonies, subscribeToPrayerRequests } from '@/lib/firestore';
 
 interface SidebarItem {
   title: string;
@@ -38,10 +39,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [newsletterSignups, setNewsletterSignups] = useState<NewsletterSignup[]>([]);
   const [lastViewedNewsletterTimestamp, setLastViewedNewsletterTimestamp] = useState<number>(0);
   const [unreadTestimoniesCount, setUnreadTestimoniesCount] = useState<number>(0);
+  const [unreadPrayerRequestsCount, setUnreadPrayerRequestsCount] = useState<number>(0);
   const pathname = usePathname();
   const { user, logout } = useAuth();
 
   useEffect(() => {
+    // Only set up listeners if user is authenticated
+    if (!user) {
+      // Clear all data when user is not authenticated
+      setNewsletterSignups([]);
+      setUnreadTestimoniesCount(0);
+      setUnreadPrayerRequestsCount(0);
+      return;
+    }
+
     // Load last viewed timestamp from localStorage
     const stored = localStorage.getItem('lastViewedNewsletterTimestamp');
     if (stored) {
@@ -68,11 +79,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       setUnreadTestimoniesCount(unreadCount);
     });
 
+    // Set up real-time listener for prayer requests
+    const unsubscribePrayerRequests = subscribeToPrayerRequests((data) => {
+      const unreadCount = data.filter(request => !request.isRead).length;
+      setUnreadPrayerRequestsCount(unreadCount);
+    });
+
     return () => {
       unsubscribe();
       unsubscribeTestimonies();
+      unsubscribePrayerRequests();
     };
-  }, [lastViewedNewsletterTimestamp]);
+  }, [user, lastViewedNewsletterTimestamp]);
 
   const getNewSignupsCount = () => {
     return newsletterSignups.filter(signup => 
@@ -90,6 +108,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       href: '/dashboard/testimonies', 
       icon: MessageSquare,
       badge: unreadTestimoniesCount
+    },
+    { 
+      title: 'Prayer Requests', 
+      href: '/dashboard/prayer-requests', 
+      icon: Heart,
+      badge: unreadPrayerRequestsCount
     },
     { 
       title: 'Newsletter', 

@@ -1,6 +1,6 @@
 import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel } from 'docx';
 import { format } from 'date-fns';
-import { Testimony } from '../firestore';
+import { Testimony, PrayerRequest } from '../firestore';
 
 // Dynamic import for pdfmake to avoid SSR issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -172,6 +172,117 @@ export const exportToPDF = async (
   }
 };
 
+// PDF Export for Prayer Requests using pdfmake
+export const exportPrayerRequestsToPDF = async (
+  prayerRequests: PrayerRequest[], 
+  options: ExportOptions = { includePhotos: false, includeMetadata: true }
+): Promise<Blob> => {
+  try {
+    // Initialize pdfmake
+    const { pdfMake: pdfMakeInstance } = await initializePdfMake();
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const docDefinition: any = {
+      content: [
+        // Header
+        {
+          text: options.churchName || 'Church Prayer Requests',
+          style: 'header',
+          alignment: 'center',
+          margin: [0, 0, 0, 20]
+        },
+        
+        // Metadata
+        ...(options.includeMetadata ? [{
+          text: `Generated on ${format(new Date(), 'PPP')}`,
+          style: 'metadata',
+          alignment: 'right',
+          margin: [0, 0, 0, 20]
+        }] : []),
+        
+        // Prayer Requests Table
+        {
+          table: {
+            headerRows: 1,
+            widths: ['*', '*', '*', 'auto'],
+            body: [
+              // Header row
+              [
+                { text: 'Name', style: 'tableHeader' },
+                { text: 'Request', style: 'tableHeader' },
+                { text: 'Email', style: 'tableHeader' },
+                { text: 'Date', style: 'tableHeader' }
+              ],
+              // Data rows
+              ...prayerRequests.map(request => [
+                { 
+                  text: request.isAnonymous ? 'Anonymous' : (request.name || 'N/A'), 
+                  style: 'tableCell' 
+                },
+                { 
+                  text: request.request.length > 150 
+                    ? request.request.substring(0, 150) + '...' 
+                    : request.request, 
+                  style: 'tableCell' 
+                },
+                { 
+                  text: request.isAnonymous ? 'N/A' : (request.email || 'N/A'), 
+                  style: 'tableCell' 
+                },
+                { 
+                  text: request.createdAt 
+                    ? format(request.createdAt.toDate(), 'MMM dd, yyyy') 
+                    : 'N/A', 
+                  style: 'tableCell' 
+                }
+              ])
+            ]
+          },
+          layout: 'lightHorizontalLines'
+        }
+      ],
+      styles: {
+        header: {
+          fontSize: 24,
+          color: '#1f2937'
+        },
+        metadata: {
+          fontSize: 10,
+          color: '#6b7280'
+        },
+        tableHeader: {
+          fontSize: 12,
+          color: '#ffffff',
+          fillColor: '#3b82f6'
+        },
+        tableCell: {
+          fontSize: 10,
+          color: '#374151'
+        }
+      }
+    };
+
+    return new Promise((resolve, reject) => {
+      try {
+        console.log('Creating PDF document for prayer requests...');
+        const pdfDoc = pdfMakeInstance.createPdf(docDefinition);
+        console.log('PDF document created, getting blob...');
+        
+        pdfDoc.getBlob((blob: Blob) => {
+          console.log('PDF blob generated successfully, size:', blob.size);
+          resolve(blob);
+        });
+      } catch (error) {
+        console.error('Error in PDF generation for prayer requests:', error);
+        reject(new Error(`PDF generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
+      }
+    });
+  } catch (error) {
+    console.error('PDF export error for prayer requests:', error);
+    throw new Error(`PDF export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+};
+
 // Word Document Export using docx
 export const exportToWord = async (
   testimonies: Testimony[], 
@@ -258,63 +369,106 @@ export const exportToWord = async (
   return await Packer.toBlob(doc);
 };
 
-// Google Drive Upload (improved with googleapis)
-export const uploadToGoogleDrive = async (
-  file: Blob,
-  fileName: string,
-  accessToken: string
-): Promise<string> => {
-  try {
-    // Create file metadata
-    const metadata = {
-      name: fileName,
-      mimeType: file.type,
-      parents: [] // Upload to root folder
-    };
+// Word Document Export for Prayer Requests using docx
+export const exportPrayerRequestsToWord = async (
+  prayerRequests: PrayerRequest[], 
+  options: ExportOptions = { includePhotos: false, includeMetadata: true }
+): Promise<Blob> => {
+  const children = [
+    // Title
+    new Paragraph({
+      text: options.churchName || 'Church Prayer Requests',
+      heading: HeadingLevel.HEADING_1,
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 400 }
+    }),
+    
+    // Metadata
+    ...(options.includeMetadata ? [
+      new Paragraph({
+        text: `Generated on ${format(new Date(), 'PPP')}`,
+        alignment: AlignmentType.RIGHT,
+        spacing: { after: 400 }
+      })
+    ] : []),
+    
+    // Prayer Requests
+    ...prayerRequests.flatMap((request, index) => [
+      new Paragraph({
+        text: `Prayer Request ${index + 1}`,
+        heading: HeadingLevel.HEADING_2,
+        spacing: { before: 400, after: 200 }
+      }),
+      
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: 'Name: ',
+            bold: true
+          }),
+          new TextRun({
+            text: request.isAnonymous ? 'Anonymous' : (request.name || 'N/A')
+          })
+        ],
+        spacing: { after: 200 }
+      }),
+      
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: 'Email: ',
+            bold: true
+          }),
+          new TextRun({
+            text: request.isAnonymous ? 'N/A' : (request.email || 'N/A')
+          })
+        ],
+        spacing: { after: 200 }
+      }),
+      
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: 'Date: ',
+            bold: true
+          }),
+          new TextRun({
+            text: request.createdAt 
+              ? format(request.createdAt.toDate(), 'PPP') 
+              : 'N/A'
+          })
+        ],
+        spacing: { after: 200 }
+      }),
+      
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: 'Request:',
+            bold: true
+          })
+        ],
+        spacing: { after: 200 }
+      }),
+      
+      new Paragraph({
+        text: request.request,
+        spacing: { after: 400 }
+      })
+    ])
+  ];
 
-    // Create form data
-    const form = new FormData();
-    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-    form.append('file', file);
+  const doc = new Document({
+    sections: [{
+      properties: {},
+      children
+    }]
+  });
 
-    // Upload to Google Drive
-    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`
-      },
-      body: form
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(`Google Drive upload failed: ${response.statusText} - ${errorData.error?.message || ''}`);
-    }
-
-    const result = await response.json();
-    return result.id; // Return file ID
-  } catch (error) {
-    console.error('Google Drive upload error:', error);
-    throw new Error(`Failed to upload to Google Drive: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  }
+  return await Packer.toBlob(doc);
 };
 
-// Alternative Google Drive upload using googleapis (server-side only)
-export const uploadToGoogleDriveWithServiceAccount = async (
-  file: Buffer,
-  fileName: string,
-  credentials: Record<string, unknown>
-): Promise<string> => {
-  try {
-    // This would be used in a server-side API route
-    // For now, we'll use the client-side approach above
-    console.log('Service account upload not implemented in client-side code', { file, fileName, credentials });
-    throw new Error('Service account upload not implemented in client-side code');
-  } catch (error) {
-    console.error('Service account upload error:', error);
-    throw new Error('Service account upload not available');
-  }
-};
+
 
 // Download file utility
 export const downloadFile = (blob: Blob, fileName: string): void => {
