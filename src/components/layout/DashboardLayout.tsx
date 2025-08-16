@@ -22,7 +22,8 @@ import {
   Sliders,
   Mail,
   Bell,
-  Heart
+  Heart,
+  Layout
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { NewsletterSignup, subscribeToNewsletterSignups, subscribeToTestimonies, subscribeToPrayerRequests } from '@/lib/firestore';
@@ -99,6 +100,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const sidebarItems: SidebarItem[] = [
+    { title: 'Dashboard', href: '/dashboard', icon: Layout },
     { title: 'Carousel', href: '/dashboard/carousel', icon: Sliders },
     { title: 'Leaders', href: '/dashboard/leaders', icon: Users },
     { title: 'Events', href: '/dashboard/events', icon: Calendar },
