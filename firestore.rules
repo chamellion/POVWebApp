@@ -74,6 +74,11 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
     
+    // Testimonies exports collection - authenticated access only
+    match /testimonies_exports/{document} {
+      allow read, write: if request.auth != null;
+    }
+    
     // Settings collection - authenticated access only
     match /settings/{document} {
       allow read, write: if request.auth != null;
@@ -81,6 +86,31 @@ service cloud.firestore {
     
     // Team leads collection - authenticated access only
     match /teamLeads/{document} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Leaders collection - authenticated access only
+    match /leaders/{document} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Mission Vision collection - authenticated access only
+    match /mission_vision/{document} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Service Times collection - authenticated access only
+    match /service_times/{document} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // About collection - authenticated access only
+    match /about/{document} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Community Service collection - authenticated access only
+    match /community_service/{document} {
       allow read, write: if request.auth != null;
     }
     
@@ -92,6 +122,6 @@ service cloud.firestore {
     // Deny access to any collection not explicitly defined above
     match /{document=**} {
       allow read, write: if false;
-    }
+  }
   }
 } 

@@ -24,7 +24,7 @@ import {
   Bell
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { NewsletterSignup, subscribeToNewsletterSignups } from '@/lib/firestore';
+import { NewsletterSignup, subscribeToNewsletterSignups, subscribeToTestimonies } from '@/lib/firestore';
 
 interface SidebarItem {
   title: string;
@@ -37,6 +37,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [newsletterSignups, setNewsletterSignups] = useState<NewsletterSignup[]>([]);
   const [lastViewedNewsletterTimestamp, setLastViewedNewsletterTimestamp] = useState<number>(0);
+  const [unreadTestimoniesCount, setUnreadTestimoniesCount] = useState<number>(0);
   const pathname = usePathname();
   const { user, logout } = useAuth();
 
@@ -61,7 +62,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
     });
 
-    return () => unsubscribe();
+    // Set up real-time listener for testimonies
+    const unsubscribeTestimonies = subscribeToTestimonies((data) => {
+      const unreadCount = data.filter(testimony => !testimony.isRead).length;
+      setUnreadTestimoniesCount(unreadCount);
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeTestimonies();
+    };
   }, [lastViewedNewsletterTimestamp]);
 
   const getNewSignupsCount = () => {
@@ -75,7 +85,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { title: 'Leaders', href: '/dashboard/leaders', icon: Users },
     { title: 'Events', href: '/dashboard/events', icon: Calendar },
     { title: 'Gallery', href: '/dashboard/gallery', icon: Image },
-    { title: 'Testimonies', href: '/dashboard/testimonies', icon: MessageSquare },
+    { 
+      title: 'Testimonies', 
+      href: '/dashboard/testimonies', 
+      icon: MessageSquare,
+      badge: unreadTestimoniesCount
+    },
     { 
       title: 'Newsletter', 
       href: '/dashboard/newsletter', 

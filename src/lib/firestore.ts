@@ -11,6 +11,7 @@ import {
   onSnapshot,
   Timestamp,
   where,
+  writeBatch,
 } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -53,8 +54,14 @@ export interface GalleryItem {
 export interface Testimony {
   id?: string;
   name: string;
-  story: string;
+  testimony: string; // Changed from 'story' to 'testimony' to match actual data
+  story?: string; // Keep for backward compatibility
   photo?: string;
+  isAnonymous: boolean;
+  allowSharing?: boolean; // Made optional since your data might not have this
+  isRead?: boolean; // Made optional since your data might not have this
+  readBy?: string; // admin userId
+  readAt?: Timestamp;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -97,6 +104,15 @@ export interface SiteSettings {
     youtube?: string;
   };
   updatedAt?: Timestamp;
+}
+
+export interface TestimonyExport {
+  id?: string;
+  adminId: string;
+  adminEmail: string;
+  exportType: 'pdf' | 'google_drive' | 'word';
+  testimonyIds: string[];
+  exportedAt?: Timestamp;
 }
 
 // Generic CRUD operations
@@ -188,6 +204,7 @@ export const newsletterSignupsCollection = 'newsletterSignups';
 export const skippedRecurringEventsCollection = 'skippedRecurringEvents';
 export const galleryCollection = 'gallery';
 export const testimoniesCollection = 'testimonies';
+export const testimoniesExportsCollection = 'testimonies_exports';
 export const settingsCollection = 'settings';
 
 // Leader-specific utilities
@@ -502,4 +519,184 @@ export const generateUpcomingRecurringEvents = async (recurringEvents: Recurring
   });
 
   return upcomingEvents;
+};
+
+// Enhanced Testimonies Management Functions
+export const getTestimoniesWithFilters = async (
+  filters: {
+    isAnonymous?: boolean;
+    isRead?: boolean;
+    allowSharing?: boolean;
+    dateFrom?: string;
+    dateTo?: string;
+  } = {}
+): Promise<Testimony[]> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  
+  let q = query(collection(db, testimoniesCollection), orderBy('createdAt', 'desc'));
+  
+  // Apply filters
+  if (filters.isAnonymous !== undefined) {
+    q = query(q, where('isAnonymous', '==', filters.isAnonymous));
+  }
+  
+  if (filters.isRead !== undefined) {
+    q = query(q, where('isRead', '==', filters.isRead));
+  }
+  
+  if (filters.allowSharing !== undefined) {
+    q = query(q, where('allowSharing', '==', filters.allowSharing));
+  }
+  
+  const querySnapshot = await getDocs(q);
+  let testimonies = querySnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  })) as Testimony[];
+  
+  // Apply date range filter (client-side for better performance)
+  if (filters.dateFrom || filters.dateTo) {
+    testimonies = testimonies.filter(testimony => {
+      if (!testimony.createdAt) return false;
+      
+      const testimonyDate = testimony.createdAt.toDate();
+      const fromDate = filters.dateFrom ? new Date(filters.dateFrom) : null;
+      const toDate = filters.dateTo ? new Date(filters.dateTo) : null;
+      
+      if (fromDate && testimonyDate < fromDate) return false;
+      if (toDate && testimonyDate > toDate) return false;
+      
+      return true;
+    });
+  }
+  
+  return testimonies;
+};
+
+export const markTestimonyAsRead = async (
+  testimonyId: string, 
+  adminId: string, 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  adminEmail: string
+): Promise<void> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  
+  const docRef = doc(db, testimoniesCollection, testimonyId);
+  await updateDoc(docRef, {
+    isRead: true,
+    readBy: adminId,
+    readAt: Timestamp.now(),
+    updatedAt: Timestamp.now(),
+  });
+};
+
+export const markMultipleTestimoniesAsRead = async (
+  testimonyIds: string[], 
+  adminId: string, 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  adminEmail: string
+): Promise<void> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  
+  const batch = writeBatch(db);
+  
+  testimonyIds.forEach(testimonyId => {
+    const docRef = doc(db, testimoniesCollection, testimonyId);
+    batch.update(docRef, {
+      isRead: true,
+      readBy: adminId,
+      readAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+  });
+  
+  await batch.commit();
+};
+
+export const subscribeToTestimonies = (
+  callback: (data: Testimony[]) => void
+) => {
+  if (!db) throw new Error('Firestore is not initialized');
+  const q = query(collection(db, testimoniesCollection), orderBy('createdAt', 'desc'));
+  
+  return onSnapshot(q, (querySnapshot) => {
+    const data = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Testimony[];
+    callback(data);
+  });
+};
+
+export const getUnreadTestimoniesCount = async (): Promise<number> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  const q = query(collection(db, testimoniesCollection), where('isRead', '==', false));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.size;
+};
+
+// Export Logging Functions
+export const logTestimonyExport = async (
+  exportData: Omit<TestimonyExport, 'id' | 'exportedAt'>
+): Promise<string> => {
+  console.log('🔍 logTestimonyExport called with:', exportData);
+  
+  if (!db) {
+    console.error('❌ Firestore database not initialized');
+    throw new Error('Firestore is not initialized');
+  }
+  
+  console.log('🔍 Database connection status:', {
+    dbExists: !!db,
+    dbType: typeof db,
+    collectionExists: !!collection(db, testimoniesExportsCollection)
+  });
+  
+  // Validate export data
+  if (!exportData.adminId || !exportData.adminEmail) {
+    console.error('❌ Invalid export data:', exportData);
+    throw new Error('Invalid export data: missing admin information');
+  }
+  
+  console.log('🔍 Logging testimony export:', {
+    collection: testimoniesExportsCollection,
+    adminId: exportData.adminId,
+    adminEmail: exportData.adminEmail,
+    exportType: exportData.exportType,
+    testimonyCount: exportData.testimonyIds.length
+  });
+  
+  try {
+    console.log('🔍 Attempting to add document to collection...');
+    const docRef = await addDoc(collection(db, testimoniesExportsCollection), {
+      ...exportData,
+      exportedAt: Timestamp.now(),
+    });
+    
+    console.log('✅ Export logged successfully with ID:', docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error('❌ Failed to log export:', error);
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      code: (error as { code?: string })?.code,
+      collection: testimoniesExportsCollection,
+      adminId: exportData.adminId,
+      adminEmail: exportData.adminEmail,
+      errorType: error?.constructor?.name,
+      errorStack: error instanceof Error ? error.stack : 'No stack trace'
+    });
+    throw error;
+  }
+};
+
+export const getTestimonyExports = async (): Promise<TestimonyExport[]> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  const q = query(collection(db, testimoniesExportsCollection), orderBy('exportedAt', 'desc'));
+  const querySnapshot = await getDocs(q);
+  
+  return querySnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  })) as TestimonyExport[];
 }; 
