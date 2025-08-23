@@ -1,16 +1,14 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
-import { User, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { User, onAuthStateChanged, signInWithEmailAndPassword, signOut, updatePassword } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { signInWithGoogle as signInWithGoogleHelper } from '@/lib/auth/signInWithGoogle';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
-  signUp: (email: string, password: string) => Promise<void>;
+  changePassword: (newPassword: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -44,24 +42,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signInWithGoogle = async () => {
-    console.log('🔐 AuthProvider: Attempting Google sign-in...');
+  const changePassword = async (newPassword: string) => {
+    console.log('🔐 AuthProvider: Attempting password change...');
     try {
-      await signInWithGoogleHelper();
-      console.log('✅ AuthProvider: Google sign-in successful');
+      if (!user) throw new Error('No user logged in');
+      await updatePassword(user, newPassword);
+      console.log('✅ AuthProvider: Password change successful');
     } catch (error) {
-      console.error('❌ AuthProvider: Google sign-in failed:', error);
-      throw error;
-    }
-  };
-
-  const signUp = async (email: string, password: string) => {
-    console.log('🔐 AuthProvider: Attempting user sign-up...');
-    try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      console.log('✅ AuthProvider: User sign-up successful');
-    } catch (error) {
-      console.error('❌ AuthProvider: User sign-up failed:', error);
+      console.error('❌ AuthProvider: Password change failed:', error);
       throw error;
     }
   };
@@ -81,8 +69,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     loading,
     signIn,
-    signInWithGoogle,
-    signUp,
+    changePassword,
     logout,
   };
 

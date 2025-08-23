@@ -10,12 +10,18 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Save, Globe, Phone, MessageSquare } from 'lucide-react';
 import { toast } from 'sonner';
-import { SiteSettings, getDocument, updateDocument, settingsCollection } from '@/lib/firestore';
+import { 
+  SiteSettings, 
+  getDocument, 
+  updateDocument, 
+  settingsCollection
+} from '@/lib/firestore';
 
 export default function SettingsPage() {
   const { loading } = useProtectedRoute();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  
   const [settings, setSettings] = useState<SiteSettings>({
     homeHeroText: '',
     contactPhone: '',
@@ -35,8 +41,9 @@ export default function SettingsPage() {
         if (existingSettings) {
           setSettings(existingSettings);
         }
-      } catch {
-        console.log('No existing settings found, using defaults');
+      } catch (error) {
+        console.error('Error fetching settings:', error);
+        toast.error('Failed to load settings');
       } finally {
         setIsLoading(false);
       }
@@ -44,6 +51,8 @@ export default function SettingsPage() {
 
     fetchSettings();
   }, []);
+
+
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -86,10 +95,6 @@ export default function SettingsPage() {
             <h1 className="text-3xl font-bold text-gray-900">Site Settings</h1>
             <p className="text-gray-600 mt-2">Manage your website configuration</p>
           </div>
-          <Button onClick={handleSave} disabled={isSaving}>
-            <Save className="h-4 w-4 mr-2" />
-            {isSaving ? 'Saving...' : 'Save Settings'}
-          </Button>
         </div>
 
         {/* Content Settings */}

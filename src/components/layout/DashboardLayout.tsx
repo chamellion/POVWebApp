@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDashboardAccess } from '@/hooks/useProfileRedirect';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -21,10 +22,12 @@ import {
   ChevronDown,
   Sliders,
   Mail,
-  Bell
+  Bell,
+  Heart,
+  Layout
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { NewsletterSignup, subscribeToNewsletterSignups } from '@/lib/firestore';
+import { NewsletterSignup, subscribeToNewsletterSignups, subscribeToTestimonies, subscribeToPrayerRequests, subscribeToContactMessages } from '@/lib/firestore';
 
 interface SidebarItem {
   title: string;
@@ -37,10 +40,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [newsletterSignups, setNewsletterSignups] = useState<NewsletterSignup[]>([]);
   const [lastViewedNewsletterTimestamp, setLastViewedNewsletterTimestamp] = useState<number>(0);
+  const [unreadTestimoniesCount, setUnreadTestimoniesCount] = useState<number>(0);
+  const [unreadPrayerRequestsCount, setUnreadPrayerRequestsCount] = useState<number>(0);
+  const [unreadContactMessagesCount, setUnreadContactMessagesCount] = useState<number>(0);
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const { canAccess, loading: dashboardAccessLoading } = useDashboardAccess();
 
   useEffect(() => {
+    // Only set up listeners if user is authenticated
+    if (!user) {
+      // Clear all data when user is not authenticated
+      setNewsletterSignups([]);
+      setUnreadTestimoniesCount(0);
+      setUnreadPrayerRequestsCount(0);
+      setUnreadContactMessagesCount(0);
+      return;
+    }
+
     // Load last viewed timestamp from localStorage
     const stored = localStorage.getItem('lastViewedNewsletterTimestamp');
     if (stored) {
@@ -61,8 +78,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
     });
 
-    return () => unsubscribe();
-  }, [lastViewedNewsletterTimestamp]);
+    // Set up real-time listener for testimonies
+    const unsubscribeTestimonies = subscribeToTestimonies((data) => {
+      const unreadCount = data.filter(testimony => !testimony.isRead).length;
+      setUnreadTestimoniesCount(unreadCount);
+    });
+
+    // Set up real-time listener for prayer requests
+    const unsubscribePrayerRequests = subscribeToPrayerRequests((data) => {
+      const unreadCount = data.filter(request => !request.isRead).length;
+      setUnreadPrayerRequestsCount(unreadCount);
+    });
+
+    // Set up real-time listener for contact messages
+    const unsubscribeContactMessages = subscribeToContactMessages((data) => {
+      try {
+        const unreadCount = data.filter(message => message.status === 'new').length;
+        setUnreadContactMessagesCount(unreadCount);
+      } catch (error) {
+        console.error('Error in contact messages listener:', error);
+        // Don't crash the app, just set count to 0
+        setUnreadContactMessagesCount(0);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeTestimonies();
+      unsubscribePrayerRequests();
+      unsubscribeContactMessages();
+    };
+  }, [user, lastViewedNewsletterTimestamp]);
 
   const getNewSignupsCount = () => {
     return newsletterSignups.filter(signup => 
@@ -71,11 +117,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const sidebarItems: SidebarItem[] = [
+    { title: 'Dashboard', href: '/dashboard', icon: Layout },
     { title: 'Carousel', href: '/dashboard/carousel', icon: Sliders },
     { title: 'Leaders', href: '/dashboard/leaders', icon: Users },
     { title: 'Events', href: '/dashboard/events', icon: Calendar },
     { title: 'Gallery', href: '/dashboard/gallery', icon: Image },
-    { title: 'Testimonies', href: '/dashboard/testimonies', icon: MessageSquare },
+    { 
+      title: 'Testimonies', 
+      href: '/dashboard/testimonies', 
+      icon: MessageSquare,
+      badge: unreadTestimoniesCount
+    },
+    { 
+      title: 'Prayer Requests', 
+      href: '/dashboard/prayer-requests', 
+      icon: Heart,
+      badge: unreadPrayerRequestsCount
+    },
+    { 
+      title: 'Contact Messages', 
+      href: '/dashboard/contact-messages', 
+      icon: MessageSquare,
+      badge: unreadContactMessagesCount
+    },
     { 
       title: 'Newsletter', 
       href: '/dashboard/newsletter', 
@@ -93,6 +157,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       toast.error('Logout failed');
     }
   };
+
+  // Show loading state while checking dashboard access
+  if (dashboardAccessLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // Block dashboard access if profile is incomplete
+  if (!canAccess && pathname !== '/dashboard/profile') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Profile Incomplete</h2>
+          <p className="text-gray-600">Please complete your profile before accessing the dashboard.</p>
+          <Button 
+            onClick={() => window.location.href = '/dashboard/profile'} 
+            className="mt-4"
+          >
+            Go to Profile
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -165,9 +257,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <User className="mr-2 h-4 w-4" />
-              <span>Profile</span>
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard/profile">
+                <User className="mr-2 h-4 w-4" />
+                <span>Profile</span>
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>

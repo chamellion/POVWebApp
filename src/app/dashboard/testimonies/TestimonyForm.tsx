@@ -17,7 +17,9 @@ import { uploadImage } from '@/lib/storage';
 
 const testimonySchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  story: z.string().min(20, 'Story must be at least 20 characters'),
+  testimony: z.string().min(20, 'Testimony must be at least 20 characters'),
+  isAnonymous: z.boolean(),
+  allowSharing: z.boolean(),
 });
 
 type TestimonyFormData = z.infer<typeof testimonySchema>;
@@ -38,7 +40,9 @@ export default function TestimonyForm({ testimony, onSuccess, onCancel }: Testim
     resolver: zodResolver(testimonySchema),
     defaultValues: {
       name: testimony?.name || '',
-      story: testimony?.story || '',
+      testimony: testimony?.testimony || testimony?.story || '',
+      isAnonymous: testimony?.isAnonymous ?? false,
+      allowSharing: testimony?.allowSharing ?? true,
     },
   });
 
@@ -76,6 +80,10 @@ export default function TestimonyForm({ testimony, onSuccess, onCancel }: Testim
       const testimonyData = {
         ...data,
         photo: photoUrl,
+        isRead: false,
+        // Map testimony field to both testimony and story for backward compatibility
+        testimony: data.testimony,
+        story: data.testimony,
       };
 
       if (testimony?.id) {
@@ -170,18 +178,55 @@ export default function TestimonyForm({ testimony, onSuccess, onCancel }: Testim
             </div>
           </div>
 
-          {/* Story */}
+          {/* Anonymous and Sharing Options */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="isAnonymous" className="text-sm">
+                Anonymous Testimony
+              </Label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="isAnonymous"
+                  {...form.register('isAnonymous')}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <span className="text-sm text-gray-600">
+                  Hide member&apos;s name publicly
+                </span>
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="allowSharing" className="text-sm">
+                Allow Sharing
+              </Label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="allowSharing"
+                  {...form.register('allowSharing')}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <span className="text-sm text-gray-600">
+                  Allow this testimony to be shared
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Testimony */}
           <div className="space-y-2">
-            <Label htmlFor="story">Testimony Story</Label>
+            <Label htmlFor="testimony">Testimony</Label>
             <Textarea
-              id="story"
-              placeholder="Share the member's testimony or story..."
+              id="testimony"
+              placeholder="Share the member's testimony..."
               rows={6}
-              {...form.register('story')}
+              {...form.register('testimony')}
             />
-            {form.formState.errors.story && (
+            {form.formState.errors.testimony && (
               <p className="text-sm text-red-500">
-                {form.formState.errors.story.message}
+                {form.formState.errors.testimony.message}
               </p>
             )}
           </div>

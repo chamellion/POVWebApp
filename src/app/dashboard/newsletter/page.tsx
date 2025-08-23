@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useProtectedRoute } from '@/hooks/useProtectedRoute';
+import { useAuth } from '@/contexts/AuthContext';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,11 +15,19 @@ import { Timestamp } from 'firebase/firestore';
 
 export default function NewsletterPage() {
   const { loading } = useProtectedRoute();
+  const { user } = useAuth();
   const [signups, setSignups] = useState<NewsletterSignup[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastViewedTimestamp, setLastViewedTimestamp] = useState<number>(0);
 
   useEffect(() => {
+    // Only set up listeners if user is authenticated
+    if (!user) {
+      setSignups([]);
+      setIsLoading(false);
+      return;
+    }
+
     // Load last viewed timestamp from localStorage
     const stored = localStorage.getItem('lastViewedNewsletterTimestamp');
     if (stored) {
@@ -53,7 +62,7 @@ export default function NewsletterPage() {
     });
 
     return () => unsubscribe();
-  }, [lastViewedTimestamp]);
+  }, [user, lastViewedTimestamp]);
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this signup?')) {

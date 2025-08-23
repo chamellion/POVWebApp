@@ -74,6 +74,78 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
     
+    // Testimonies exports collection - authenticated access only
+    match /testimonies_exports/{document} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Prayer Requests collection - public create, authenticated read/write
+    match /prayerRequests/{document} {
+      // Allow anyone to create a prayer request
+      allow create: if 
+        // Required fields must exist and be of correct type
+        request.resource.data.keys().hasAll(['request', 'isAnonymous']) &&
+        request.resource.data.request is string &&
+        request.resource.data.request.size() > 0 &&
+        request.resource.data.isAnonymous is bool &&
+        
+        // Optional fields must be string or null if present
+        (request.resource.data.name == null || (request.resource.data.name is string && request.resource.data.name.size() > 0)) &&
+        (request.resource.data.email == null || (request.resource.data.email is string && request.resource.data.email.size() > 0)) &&
+        
+        // If email is provided, it should be a valid email format
+        (request.resource.data.email == null || request.resource.data.email.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$')) &&
+        
+        // If anonymous, name and email should be null
+        (request.resource.data.isAnonymous == false || (request.resource.data.name == null && request.resource.data.email == null));
+      
+      // Only authenticated users can read prayer requests
+      allow read: if request.auth != null;
+      
+      // Only authenticated users can update/delete
+      allow update, delete: if request.auth != null;
+    }
+    
+    // Prayer requests exports collection - authenticated access only
+    match /prayer_requests_exports/{document} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Contact Messages collection - public create, authenticated read/write
+    match /contactMessages/{document} {
+      // Allow anyone to create a contact message
+      allow create: if 
+        // Required fields must exist and be of correct type
+        request.resource.data.keys().hasAll(['name', 'email', 'subject', 'message', 'preferredContactMethod']) &&
+        request.resource.data.name is string &&
+        request.resource.data.name.size() > 0 &&
+        request.resource.data.email is string &&
+        request.resource.data.email.size() > 0 &&
+        request.resource.data.subject is string &&
+        request.resource.data.subject.size() > 0 &&
+        request.resource.data.message is string &&
+        request.resource.data.message.size() > 0 &&
+        request.resource.data.preferredContactMethod in ['email', 'phone', 'either'] &&
+        
+        // Basic email format validation
+        request.resource.data.email.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$') &&
+        
+        // Optional fields must be string if present
+        (request.resource.data.phone == null || (request.resource.data.phone is string && request.resource.data.phone.size() > 0)) &&
+        (request.resource.data.userAgent == null || (request.resource.data.userAgent is string && request.resource.data.userAgent.size() > 0));
+      
+      // Only authenticated users can read contact messages
+      allow read: if request.auth != null;
+      
+      // Only authenticated users can update/delete
+      allow update, delete: if request.auth != null;
+    }
+    
+    // Contact messages exports collection - authenticated access only
+    match /contact_messages_exports/{document} {
+      allow read, write: if request.auth != null;
+    }
+    
     // Settings collection - authenticated access only
     match /settings/{document} {
       allow read, write: if request.auth != null;
@@ -84,6 +156,59 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
     
+    // Leaders collection - authenticated access only
+    match /leaders/{document} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Mission Vision collection - authenticated access only
+    match /mission_vision/{document} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Service Times collection - authenticated access only
+    match /service_times/{document} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // About collection - authenticated access only
+    match /about/{document} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Community Service collection - authenticated access only
+    match /community_service/{document} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // ========================================
+    // ACTIVITY LOG COLLECTION
+    // Authenticated read access, authenticated create access, no updates/deletes
+    // ========================================
+    
+    // Activity Log collection - authenticated read/create, no updates/deletes
+    match /activityLog/{document} {
+      // Only authenticated users can read activity logs
+      allow read: if request.auth != null;
+      
+      // Only authenticated users can create activity logs
+      allow create: if request.auth != null;
+      
+      // Nobody can update or delete activity logs (immutable audit trail)
+      allow update, delete: if false;
+    }
+    
+    // ========================================
+    // USERS COLLECTION
+    // Users can only read/write their own profile
+    // ========================================
+    
+    // Users collection - users can only access their own profile
+    match /users/{userId} {
+      // Users can read and write their own profile
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
     // ========================================
     // DEFAULT RULE
     // Deny all other access by default
@@ -92,6 +217,6 @@ service cloud.firestore {
     // Deny access to any collection not explicitly defined above
     match /{document=**} {
       allow read, write: if false;
-    }
+  }
   }
 } 

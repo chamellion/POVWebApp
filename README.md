@@ -256,7 +256,7 @@ The project includes a Vercel build script in `package.json`:
 
 3. **Authentication issues**
    - Ensure domain is added to Firebase authorized domains
-   - Check Google OAuth configuration
+   
 
 ### Development Tips
 
