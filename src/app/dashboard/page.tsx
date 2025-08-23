@@ -18,7 +18,10 @@ import {
   Activity,
   Clock,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  Plus,
+  Edit,
+  Trash2
 } from 'lucide-react';
 import Link from 'next/link';
 import { useCollectionCounts } from '@/hooks/useCollectionCount';
@@ -28,7 +31,7 @@ import { getRelativeTime } from '@/lib/utils/timeUtils';
 export default function DashboardPage() {
   const { user, loading } = useProtectedRoute();
   const { counts, loading: countsLoading, error: countsError } = useCollectionCounts();
-  const { activities, loading: activitiesLoading, error: activitiesError } = useRecentActivity();
+  const { activities, loading: activitiesLoading, error: activitiesError } = useRecentActivity(10);
 
   if (loading) {
     return (
@@ -158,6 +161,9 @@ export default function DashboardPage() {
       case 'testimonies': return <MessageSquare className="h-4 w-4" />;
       case 'prayerRequests': return <Heart className="h-4 w-4" />;
       case 'gallery': return <Image className="h-4 w-4" />;
+      case 'leaders': return <Users className="h-4 w-4" />;
+      case 'pastors': return <Users className="h-4 w-4" />;
+      case 'newsletterSignups': return <Mail className="h-4 w-4" />;
       default: return <Activity className="h-4 w-4" />;
     }
   };
@@ -169,6 +175,27 @@ export default function DashboardPage() {
       case 'testimonies': return 'bg-indigo-100 text-indigo-800';
       case 'prayerRequests': return 'bg-red-100 text-red-800';
       case 'gallery': return 'bg-orange-100 text-orange-800';
+      case 'leaders': return 'bg-green-100 text-green-800';
+      case 'pastors': return 'bg-green-100 text-green-800';
+      case 'newsletterSignups': return 'bg-teal-100 text-teal-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getActionIcon = (action: string) => {
+    switch (action) {
+      case 'create': return <Plus className="h-3 w-3" />;
+      case 'update': return <Edit className="h-3 w-3" />;
+      case 'delete': return <Trash2 className="h-3 w-3" />;
+      default: return <Activity className="h-3 w-3" />;
+    }
+  };
+
+  const getActionColor = (action: string) => {
+    switch (action) {
+      case 'create': return 'bg-green-100 text-green-800';
+      case 'update': return 'bg-blue-100 text-blue-800';
+      case 'delete': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -307,7 +334,7 @@ export default function DashboardPage() {
                   <p>No recent activity</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                                <div className="space-y-4">
                   {activities.map((activity) => (
                     <div key={activity.id} className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
@@ -320,10 +347,22 @@ export default function DashboardPage() {
                             {getCollectionIcon(activity.collection)}
                             <span className="ml-1 capitalize">{activity.collection.replace(/([A-Z])/g, ' $1').trim()}</span>
                           </Badge>
-                                                     <span className="text-sm text-gray-600">
-                             {activity.description} &quot;{activity.title}&quot; was added
-                           </span>
+                          <Badge 
+                            variant="secondary" 
+                            className={`text-xs ${getActionColor(activity.action)}`}
+                          >
+                            {getActionIcon(activity.action)}
+                            <span className="ml-1 capitalize">{activity.action}</span>
+                          </Badge>
+                          <span className="text-sm text-gray-600">
+                            {activity.description}
+                          </span>
                         </div>
+                        {activity.title && (
+                          <div className="mt-1 text-sm font-medium text-gray-900">
+                            &quot;{activity.title}&quot;
+                          </div>
+                        )}
                       </div>
                       <span className="text-xs text-gray-400 whitespace-nowrap">
                         {getRelativeTime(activity.timestamp)}

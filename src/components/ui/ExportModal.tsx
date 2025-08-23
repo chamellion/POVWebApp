@@ -8,24 +8,26 @@ import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { FileText, FileDown, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Testimony, PrayerRequest } from '@/lib/firestore';
+import { Testimony, PrayerRequest, ContactMessage } from '@/lib/firestore';
 import { 
   exportToPDF, 
   exportToWord, 
   exportPrayerRequestsToPDF,
   exportPrayerRequestsToWord,
+  exportContactMessagesToPDF,
+  exportContactMessagesToWord,
   downloadFile, 
   generateFileName,
   ExportOptions 
 } from '@/lib/utils/exportUtils';
-import { logTestimonyExport, logPrayerRequestExport } from '@/lib/firestore';
+import { logTestimonyExport, logPrayerRequestExport, logContactMessageExport } from '@/lib/firestore';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface ExportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  items: (Testimony | PrayerRequest)[];
-  exportType?: 'testimonies' | 'prayer_requests';
+  items: (Testimony | PrayerRequest | ContactMessage)[];
+  exportType?: 'testimonies' | 'prayer_requests' | 'contact_messages';
   onExportSuccess?: () => void;
 }
 
@@ -96,6 +98,8 @@ export default function ExportModal({
               file = await exportToPDF(itemsToExport as Testimony[], exportOptions);
             } else if (contentType === 'prayer_requests') {
               file = await exportPrayerRequestsToPDF(itemsToExport as PrayerRequest[], exportOptions);
+            } else if (contentType === 'contact_messages') {
+              file = await exportContactMessagesToPDF(itemsToExport as ContactMessage[], exportOptions);
             } else {
               toast.error('PDF export not supported for this content type.');
               return;
@@ -117,6 +121,8 @@ export default function ExportModal({
             file = await exportToWord(itemsToExport as Testimony[], exportOptions);
           } else if (contentType === 'prayer_requests') {
             file = await exportPrayerRequestsToWord(itemsToExport as PrayerRequest[], exportOptions);
+          } else if (contentType === 'contact_messages') {
+            file = await exportContactMessagesToWord(itemsToExport as ContactMessage[], exportOptions);
           } else {
             toast.error('Word export not supported for this content type.');
             return;
@@ -152,6 +158,13 @@ export default function ExportModal({
               exportType: exportType,
               prayerRequestIds: itemsToExport.map(t => t.id!)
             });
+          } else if (contentType === 'contact_messages') {
+            await logContactMessageExport({
+              adminId: user.uid,
+              adminEmail: user.email,
+              exportType: exportType,
+              contactMessageIds: itemsToExport.map(t => t.id!)
+            });
           }
           console.log('✅ Export logged successfully');
         } catch (loggingError) {
@@ -171,7 +184,9 @@ export default function ExportModal({
         });
       }
 
-      const contentTypeText = contentType === 'testimonies' ? 'Testimonies' : 'Prayer requests';
+      const contentTypeText = contentType === 'testimonies' ? 'Testimonies' : 
+                             contentType === 'prayer_requests' ? 'Prayer requests' : 
+                             'Contact messages';
       toast.success(`${contentTypeText} exported successfully as ${exportType.toUpperCase()}`);
       
       // Call the success callback if provided
@@ -182,7 +197,9 @@ export default function ExportModal({
       onClose();
     } catch (error) {
       console.error('Export error:', error);
-      const contentTypeText = contentType === 'testimonies' ? 'testimonies' : 'prayer requests';
+      const contentTypeText = contentType === 'testimonies' ? 'testimonies' : 
+                             contentType === 'prayer_requests' ? 'prayer requests' : 
+                             'contact messages';
       toast.error(`Failed to export ${contentTypeText}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsExporting(false);
@@ -218,7 +235,9 @@ export default function ExportModal({
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Export Testimonies</DialogTitle>
+          <DialogTitle>Export {contentType === 'testimonies' ? 'Testimonies' : 
+                               contentType === 'prayer_requests' ? 'Prayer Requests' : 
+                               'Contact Messages'}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
@@ -316,7 +335,9 @@ export default function ExportModal({
           {/* Export Summary */}
           <div className="bg-gray-50 p-3 rounded-lg">
             <p className="text-sm text-gray-600">
-              Exporting {itemsToExport.length} {contentType === 'testimonies' ? 'testimonie' : 'prayer request'}{itemsToExport.length !== 1 ? 's' : ''}
+              Exporting {itemsToExport.length} {contentType === 'testimonies' ? 'testimonie' : 
+                                               contentType === 'prayer_requests' ? 'prayer request' : 
+                                               'contact message'}{itemsToExport.length !== 1 ? 's' : ''}
             </p>
             {exportType === 'pdf' && !pdfAvailable && (
               <p className="text-xs text-red-600 mt-1">

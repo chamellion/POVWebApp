@@ -36,6 +36,7 @@ import {
   subscribeToTestimonies,
   getUnreadTestimoniesCount
 } from '@/lib/firestore';
+import { logDelete, logUpdate } from '@/lib/firebase/logActivity';
 import { useAuth } from '@/contexts/AuthContext';
 import ExportModal from '@/components/ui/ExportModal';
 import ExportHistory from '@/components/ui/ExportHistory';
@@ -175,7 +176,15 @@ export default function TestimoniesPage() {
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this testimony?')) {
       try {
+        // Find the testimony to get its title for logging
+        const testimony = testimonies.find(t => t.id === id);
+        const title = testimony?.name || testimony?.testimony?.substring(0, 50) || 'Untitled';
+        
         await deleteDocument(testimoniesCollection, id);
+        
+        // Log the deletion activity
+        await logDelete('testimonies', title, user?.uid);
+        
         toast.success('Testimony deleted successfully');
       } catch (error) {
         console.error('Failed to delete testimony:', error);
@@ -188,7 +197,15 @@ export default function TestimoniesPage() {
     if (!user) return;
     
     try {
+      // Find the testimony to get its title for logging
+      const testimony = testimonies.find(t => t.id === testimonyId);
+      const title = testimony?.name || testimony?.testimony?.substring(0, 50) || 'Untitled';
+      
       await markTestimonyAsRead(testimonyId, user.uid, user.email || '');
+      
+      // Log the update activity
+      await logUpdate('testimonies', title, user.uid);
+      
       toast.success('Testimony marked as read');
     } catch (error) {
       console.error('Failed to mark as read:', error);
@@ -201,6 +218,13 @@ export default function TestimoniesPage() {
     
     try {
       await markMultipleTestimoniesAsRead(Array.from(selectedTestimonies), user.uid, user.email || '');
+      
+      // Log the bulk update activity
+      await logUpdate('testimonies', `${selectedTestimonies.size} testimonies`, user.uid, {
+        action: 'bulk_mark_read',
+        count: selectedTestimonies.size
+      });
+      
       setSelectedTestimonies(new Set());
       toast.success(`${selectedTestimonies.size} testimonies marked as read`);
     } catch (error) {

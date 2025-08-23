@@ -36,6 +36,7 @@ import {
   subscribeToPrayerRequests,
   getUnreadPrayerRequestsCount
 } from '@/lib/firestore';
+import { logDelete, logUpdate } from '@/lib/firebase/logActivity';
 import { useAuth } from '@/contexts/AuthContext';
 import ExportModal from '@/components/ui/ExportModal';
 import ExportHistory from '@/components/ui/ExportHistory';
@@ -166,7 +167,15 @@ export default function PrayerRequestsPage() {
     if (!user) return;
     
     try {
+      // Find the request to get its title for logging
+      const request = prayerRequests.find(r => r.id === requestId);
+      const title = request?.name || request?.request?.substring(0, 50) || 'Anonymous Request';
+      
       await markPrayerRequestAsRead(requestId, user.uid, user.email || '');
+      
+      // Log the update activity
+      await logUpdate('prayerRequests', title, user.uid);
+      
       toast.success('Prayer request marked as read');
     } catch (error) {
       console.error('Failed to mark as read:', error);
@@ -183,6 +192,13 @@ export default function PrayerRequestsPage() {
         user.uid, 
         user.email || ''
       );
+      
+      // Log the bulk update activity
+      await logUpdate('prayerRequests', `${selectedRequests.size} prayer requests`, user.uid, {
+        action: 'bulk_mark_read',
+        count: selectedRequests.size
+      });
+      
       toast.success(`${selectedRequests.size} prayer request(s) marked as read`);
       setSelectedRequests(new Set());
     } catch (error) {
@@ -195,7 +211,15 @@ export default function PrayerRequestsPage() {
     if (!confirm('Are you sure you want to delete this prayer request?')) return;
     
     try {
+      // Find the request to get its title for logging
+      const request = prayerRequests.find(r => r.id === requestId);
+      const title = request?.name || request?.request?.substring(0, 50) || 'Anonymous Request';
+      
       await deleteDocument(prayerRequestsCollection, requestId);
+      
+      // Log the deletion activity
+      await logDelete('prayerRequests', title, user?.uid);
+      
       toast.success('Prayer request deleted');
     } catch (error) {
       console.error('Failed to delete:', error);
@@ -213,6 +237,13 @@ export default function PrayerRequestsPage() {
         deleteDocument(prayerRequestsCollection, id)
       );
       await Promise.all(promises);
+      
+      // Log the bulk deletion activity
+      await logDelete('prayerRequests', `${selectedRequests.size} prayer requests`, user?.uid, {
+        action: 'bulk_delete',
+        count: selectedRequests.size
+      });
+      
       toast.success(`${selectedRequests.size} prayer request(s) deleted`);
       setSelectedRequests(new Set());
     } catch (error) {

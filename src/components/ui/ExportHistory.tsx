@@ -7,17 +7,18 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { FileText, FileDown, Download } from 'lucide-react';
 import { toast } from 'sonner';
-import { TestimonyExport, getTestimonyExports, PrayerRequestExport, getPrayerRequestExports } from '@/lib/firestore';
+import { TestimonyExport, getTestimonyExports, PrayerRequestExport, getPrayerRequestExports, ContactMessageExport, getContactMessageExports } from '@/lib/firestore';
 import { format } from 'date-fns';
 
 interface ExportHistoryProps {
   testimonies?: Array<{ id?: string; name?: string; isAnonymous?: boolean }>; // Type for testimonies lookup
   prayerRequests?: Array<{ id?: string; name?: string | null; isAnonymous?: boolean }>; // Type for prayer requests lookup
-  collection?: 'testimonies_exports' | 'prayer_requests_exports';
+  contactMessages?: Array<{ id?: string; name?: string; subject?: string }>; // Type for contact messages lookup
+  collection?: 'testimonies_exports' | 'prayer_requests_exports' | 'contact_messages_exports';
 }
 
-export default function ExportHistory({ testimonies, prayerRequests, collection }: ExportHistoryProps) {
-  const [exports, setExports] = useState<(TestimonyExport | PrayerRequestExport)[]>([]);
+export default function ExportHistory({ testimonies, prayerRequests, contactMessages, collection }: ExportHistoryProps) {
+  const [exports, setExports] = useState<(TestimonyExport | PrayerRequestExport | ContactMessageExport)[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -26,13 +27,27 @@ export default function ExportHistory({ testimonies, prayerRequests, collection 
         let data;
         if (collection === 'prayer_requests_exports') {
           data = await getPrayerRequestExports();
+        } else if (collection === 'contact_messages_exports') {
+          data = await getContactMessageExports();
         } else {
           data = await getTestimonyExports();
         }
         setExports(data);
       } catch (error) {
-        console.error('Failed to fetch exports:', error);
-        toast.error('Failed to fetch export history');
+        console.error(`Failed to fetch exports for collection '${collection}':`, error);
+        
+        // Provide more specific error messages
+        if (error instanceof Error) {
+          if (error.message.includes('permission')) {
+            toast.error(`Permission denied: Cannot access ${collection} collection`);
+          } else if (error.message.includes('network')) {
+            toast.error('Network error: Please check your connection');
+          } else {
+            toast.error(`Failed to fetch export history: ${error.message}`);
+          }
+        } else {
+          toast.error('Failed to fetch export history');
+        }
       } finally {
         setIsLoading(false);
       }
@@ -80,6 +95,16 @@ export default function ExportHistory({ testimonies, prayerRequests, collection 
         return names.join(', ');
       }
       return `${names.slice(0, 3).join(', ')} +${names.length - 3} more`;
+    } else if (collection === 'contact_messages_exports' && contactMessages) {
+      const names = validIds.map(id => {
+        const message = contactMessages.find(m => m.id === id);
+        return message ? `${message.name} (${message.subject})` : 'Unknown';
+      });
+      
+      if (names.length <= 3) {
+        return names.join(', ');
+      }
+      return `${names.slice(0, 3).join(', ')} +${names.length - 3} more`;
     } else if (testimonies) {
       const names = validIds.map(id => {
         const testimony = testimonies.find(t => t.id === id);
@@ -96,11 +121,25 @@ export default function ExportHistory({ testimonies, prayerRequests, collection 
   };
 
   const downloadExportLog = () => {
-    const itemType = collection === 'prayer_requests_exports' ? 'Prayer Requests' : 'Testimonies';
+    let itemType = 'Testimonies';
+    if (collection === 'prayer_requests_exports') {
+      itemType = 'Prayer Requests';
+    } else if (collection === 'contact_messages_exports') {
+      itemType = 'Contact Messages';
+    }
+    
     const csvContent = [
       ['Export Date', 'Admin Email', 'Export Type', `${itemType} Count`, `${itemType} IDs`].join(','),
       ...exports.map(exp => {
-        const itemIds = 'testimonyIds' in exp ? exp.testimonyIds : exp.prayerRequestIds;
+        let itemIds: string[] = [];
+        if ('testimonyIds' in exp) {
+          itemIds = exp.testimonyIds;
+        } else if ('prayerRequestIds' in exp) {
+          itemIds = exp.prayerRequestIds;
+        } else if ('contactMessageIds' in exp) {
+          itemIds = exp.contactMessageIds;
+        }
+        
         return [
           exp.exportedAt ? format(exp.exportedAt.toDate(), 'yyyy-MM-dd HH:mm:ss') : 'N/A',
           exp.adminEmail,
@@ -156,7 +195,11 @@ export default function ExportHistory({ testimonies, prayerRequests, collection 
             <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No exports yet</h3>
             <p className="text-gray-500">
-              Export history will appear here once you export {collection === 'prayer_requests_exports' ? 'prayer requests' : 'testimonies'}.
+              Export history will appear here once you export {
+                collection === 'prayer_requests_exports' ? 'prayer requests' : 
+                collection === 'contact_messages_exports' ? 'contact messages' : 
+                'testimonies'
+              }.
             </p>
           </div>
         ) : (
@@ -167,7 +210,11 @@ export default function ExportHistory({ testimonies, prayerRequests, collection 
                   <TableHead>Date</TableHead>
                   <TableHead>Admin</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>{collection === 'prayer_requests_exports' ? 'Prayer Requests' : 'Testimonies'}</TableHead>
+                  <TableHead>{
+                    collection === 'prayer_requests_exports' ? 'Prayer Requests' : 
+                    collection === 'contact_messages_exports' ? 'Contact Messages' : 
+                    'Testimonies'
+                  }</TableHead>
                   <TableHead>Count</TableHead>
                 </TableRow>
               </TableHeader>
@@ -186,24 +233,56 @@ export default function ExportHistory({ testimonies, prayerRequests, collection 
                     <TableCell className="max-w-[300px]">
                       <div className="group relative">
                         <span className="truncate block">
-                          {getItemNames('testimonyIds' in exp ? exp.testimonyIds : exp.prayerRequestIds)}
+                          {getItemNames((() => {
+                            if ('testimonyIds' in exp) {
+                              return exp.testimonyIds;
+                            } else if ('prayerRequestIds' in exp) {
+                              return exp.prayerRequestIds;
+                            } else if ('contactMessageIds' in exp) {
+                              return exp.contactMessageIds;
+                            }
+                            return [];
+                          })())}
                         </span>
                         <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block bg-gray-900 text-white text-xs rounded py-1 px-2 z-10 max-w-xs">
-                          {('testimonyIds' in exp ? exp.testimonyIds : exp.prayerRequestIds).map(id => {
-                            if (collection === 'prayer_requests_exports' && prayerRequests) {
-                              const request = prayerRequests.find(r => r.id === id);
-                              return request ? (request.isAnonymous ? 'Anonymous' : (request.name || 'Unknown')) : 'Unknown';
-                            } else if (testimonies) {
-                              const testimony = testimonies.find(t => t.id === id);
-                              return testimony ? (testimony.isAnonymous ? 'Anonymous' : testimony.name) : 'Unknown';
+                          {(() => {
+                            let itemIds: string[] = [];
+                            if ('testimonyIds' in exp) {
+                              itemIds = exp.testimonyIds;
+                            } else if ('prayerRequestIds' in exp) {
+                              itemIds = exp.prayerRequestIds;
+                            } else if ('contactMessageIds' in exp) {
+                              itemIds = exp.contactMessageIds;
                             }
-                            return 'Unknown';
-                          }).join(', ')}
+                            
+                            return itemIds.map(id => {
+                              if (collection === 'prayer_requests_exports' && prayerRequests) {
+                                const request = prayerRequests.find(r => r.id === id);
+                                return request ? (request.isAnonymous ? 'Anonymous' : (request.name || 'Unknown')) : 'Unknown';
+                              } else if (collection === 'contact_messages_exports' && contactMessages) {
+                                const message = contactMessages.find(m => m.id === id);
+                                return message ? `${message.name} (${message.subject})` : 'Unknown';
+                              } else if (testimonies) {
+                                const testimony = testimonies.find(t => t.id === id);
+                                return testimony ? (testimony.isAnonymous ? 'Anonymous' : testimony.name) : 'Unknown';
+                              }
+                              return 'Unknown';
+                            }).join(', ');
+                          })()}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{('testimonyIds' in exp ? exp.testimonyIds : exp.prayerRequestIds).length}</Badge>
+                      <Badge variant="outline">{(() => {
+                        if ('testimonyIds' in exp) {
+                          return exp.testimonyIds.length;
+                        } else if ('prayerRequestIds' in exp) {
+                          return exp.prayerRequestIds.length;
+                        } else if ('contactMessageIds' in exp) {
+                          return exp.contactMessageIds.length;
+                        }
+                        return 0;
+                      })()}</Badge>
                     </TableCell>
                   </TableRow>
                 ))}

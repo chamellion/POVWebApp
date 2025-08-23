@@ -1,90 +1,83 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, limit, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 export interface ActivityItem {
   id: string;
-  type: 'added' | 'updated' | 'deleted';
   collection: string;
+  action: 'create' | 'update' | 'delete';
   title: string;
-  timestamp: Timestamp;
   description: string;
+  timestamp: Timestamp;
+  userId?: string | null;
+  metadata?: Record<string, unknown>;
 }
 
-export function useRecentActivity() {
+export function useRecentActivity(limitCount: number = 20) {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchRecentActivity = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+    if (!db) {
+      setError('Firebase not initialized');
+      setLoading(false);
+      return;
+    }
 
-        const allActivities: ActivityItem[] = [];
+    setLoading(true);
+    setError(null);
 
-        // Fetch recent items from each collection
-        const collections = [
-          { name: 'events', titleField: 'title', description: 'Event' },
-          { name: 'carousel', titleField: 'headline', description: 'Carousel slide' },
-          { name: 'testimonies', titleField: 'name', description: 'Testimony' },
-          { name: 'prayerRequests', titleField: 'name', description: 'Prayer request' },
-          { name: 'gallery', titleField: 'title', description: 'Gallery item' },
-        ];
+    try {
+      // Query the centralized activityLog collection
+      const q = query(
+        collection(db, 'activityLog'),
+        orderBy('timestamp', 'desc'),
+        limit(limitCount)
+      );
 
-        for (const collectionInfo of collections) {
-          try {
-            const q = query(
-              collection(db, collectionInfo.name),
-              orderBy('createdAt', 'desc'),
-              limit(3)
-            );
-            
-            const snapshot = await getDocs(q);
-            
-            snapshot.docs.forEach(doc => {
-              const data = doc.data();
-              if (data.createdAt) {
-                const title = data[collectionInfo.titleField] || 
-                             (collectionInfo.name === 'testimonies' && data.isAnonymous ? 'Anonymous' : 'Untitled') ||
-                             (collectionInfo.name === 'prayerRequests' && data.isAnonymous ? 'Anonymous' : 'Untitled') ||
-                             'Untitled';
-                
-                allActivities.push({
-                  id: doc.id,
-                  type: 'added',
-                  collection: collectionInfo.name,
-                  title,
-                  timestamp: data.createdAt,
-                  description: collectionInfo.description,
-                });
-              }
-            });
-          } catch (err) {
-            console.warn(`Failed to fetch from ${collectionInfo.name}:`, err);
-            // Continue with other collections
-          }
+      // Set up real-time listener
+      const unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          const activityData: ActivityItem[] = [];
+          
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            if (data.timestamp) {
+              activityData.push({
+                id: doc.id,
+                collection: data.collection || 'unknown',
+                action: data.action || 'create',
+                title: data.title || 'Untitled',
+                description: data.description || 'No description',
+                timestamp: data.timestamp,
+                userId: data.userId || null,
+                metadata: data.metadata || {}
+              });
+            }
+          });
+
+          setActivities(activityData);
+          setLoading(false);
+        },
+        (err) => {
+          console.error('Error listening to activity log:', err);
+          setError(err.message);
+          setLoading(false);
         }
+      );
 
-        // Sort all activities by timestamp and take the most recent 5
-        const sortedActivities = allActivities
-          .sort((a, b) => b.timestamp.toMillis() - a.timestamp.toMillis())
-          .slice(0, 5);
-
-        setActivities(sortedActivities);
-      } catch (err) {
-        console.error('Error fetching recent activity:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch recent activity');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchRecentActivity();
-  }, []);
+      // Cleanup function
+      return () => unsubscribe();
+    } catch (err) {
+      console.error('Error setting up activity listener:', err);
+      setError(err instanceof Error ? err.message : 'Failed to set up activity listener');
+      setLoading(false);
+    }
+  }, [limitCount]);
 
   return { activities, loading, error };
 }

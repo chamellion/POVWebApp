@@ -6,6 +6,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  setDoc,
   query,
   orderBy,
   onSnapshot,
@@ -106,6 +107,17 @@ export interface SkippedRecurringEvent {
   createdAt?: Timestamp;
 }
 
+export interface User {
+  id?: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  role?: string;
+  email: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
 export interface SiteSettings {
   id?: string;
   homeHeroText: string;
@@ -134,6 +146,31 @@ export interface PrayerRequestExport {
   adminEmail: string;
   exportType: 'pdf' | 'word';
   prayerRequestIds: string[];
+  exportedAt?: Timestamp;
+}
+
+export interface ContactMessage {
+  id?: string;
+  name: string;
+  email: string;
+  phone?: string;
+  subject: string;
+  message: string;
+  preferredContactMethod: 'email' | 'phone' | 'either';
+  userAgent?: string;
+  status: 'new' | 'read';
+  readBy?: string; // admin userId
+  readAt?: Timestamp;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface ContactMessageExport {
+  id?: string;
+  adminId: string;
+  adminEmail: string;
+  exportType: 'pdf' | 'word';
+  contactMessageIds: string[];
   exportedAt?: Timestamp;
 }
 
@@ -200,6 +237,34 @@ export const getDocuments = async <T>(
   })) as T[];
 };
 
+// User management functions
+export const getUserProfile = async (uid: string): Promise<User | null> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  return getDocument<User>(usersCollection, uid);
+};
+
+export const createUserProfile = async (uid: string, userData: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<void> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  const docRef = doc(db, usersCollection, uid);
+  await setDoc(docRef, {
+    ...userData,
+    createdAt: Timestamp.now(),
+    updatedAt: Timestamp.now(),
+  });
+};
+
+export const updateUserProfile = async (uid: string, userData: Partial<Omit<User, 'id' | 'createdAt'>>): Promise<void> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  await updateDocument<User>(usersCollection, uid, userData);
+};
+
+export const checkUserProfileExists = async (uid: string): Promise<boolean> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  const docRef = doc(db, usersCollection, uid);
+  const docSnap = await getDoc(docRef);
+  return docSnap.exists();
+};
+
 // Real-time listeners
 export const subscribeToCollection = <T>(
   collectionName: string,
@@ -229,7 +294,10 @@ export const testimoniesCollection = 'testimonies';
 export const testimoniesExportsCollection = 'testimonies_exports';
 export const prayerRequestsCollection = 'prayerRequests';
 export const prayerRequestsExportsCollection = 'prayer_requests_exports';
+export const contactMessagesCollection = 'contactMessages';
+export const contactMessagesExportsCollection = 'contact_messages_exports';
 export const settingsCollection = 'settings';
+export const usersCollection = 'users';
 
 // Leader-specific utilities
 export const getLeadersByCategory = async (category: 'pastor' | 'teamLead'): Promise<Leader[]> => {
@@ -881,4 +949,158 @@ export const getPrayerRequestExports = async (): Promise<PrayerRequestExport[]> 
     id: doc.id,
     ...doc.data()
   })) as PrayerRequestExport[];
+};
+
+// Contact Message Management Functions
+export const getContactMessagesWithFilters = async (
+  filters: {
+    searchTerm?: string;
+    filterType?: 'all' | 'new' | 'read';
+    dateFrom?: string;
+    dateTo?: string;
+  } = {}
+): Promise<ContactMessage[]> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  
+  const q = query(collection(db, contactMessagesCollection), orderBy('createdAt', 'desc'));
+  const querySnapshot = await getDocs(q);
+  let contactMessages = querySnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  })) as ContactMessage[];
+  
+  // Apply filters
+  if (filters.searchTerm) {
+    contactMessages = contactMessages.filter(message => 
+      (message.name && message.name.toLowerCase().includes(filters.searchTerm!.toLowerCase())) ||
+      (message.email && message.email.toLowerCase().includes(filters.searchTerm!.toLowerCase())) ||
+      (message.phone && message.phone.toLowerCase().includes(filters.searchTerm!.toLowerCase())) ||
+      (message.subject && message.subject.toLowerCase().includes(filters.searchTerm!.toLowerCase())) ||
+      (message.message && message.message.toLowerCase().includes(filters.searchTerm!.toLowerCase()))
+    );
+  }
+  
+  if (filters.filterType && filters.filterType !== 'all') {
+    switch (filters.filterType) {
+      case 'new':
+        contactMessages = contactMessages.filter(message => message.status === 'new');
+        break;
+      case 'read':
+        contactMessages = contactMessages.filter(message => message.status === 'read');
+        break;
+    }
+  }
+  
+  if (filters.dateFrom || filters.dateTo) {
+    contactMessages = contactMessages.filter(message => {
+      if (!message.createdAt) return false;
+      const messageDate = message.createdAt.toDate();
+      const fromDate = filters.dateFrom ? new Date(filters.dateFrom) : null;
+      const toDate = filters.dateTo ? new Date(filters.dateTo) : null;
+      
+      if (fromDate && messageDate < fromDate) return false;
+      if (toDate && messageDate > toDate) return false;
+      
+      return true;
+    });
+  }
+  
+  return contactMessages;
+};
+
+export const markContactMessageAsRead = async (
+  messageId: string, 
+  adminId: string, 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  adminEmail: string
+): Promise<void> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  
+  const docRef = doc(db, contactMessagesCollection, messageId);
+  await updateDoc(docRef, {
+    status: 'read',
+    readBy: adminId,
+    readAt: Timestamp.now(),
+    updatedAt: Timestamp.now(),
+  });
+};
+
+export const markMultipleContactMessagesAsRead = async (
+  messageIds: string[], 
+  adminId: string, 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  adminEmail: string
+): Promise<void> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  
+  const batch = writeBatch(db);
+  
+  messageIds.forEach(messageId => {
+    const docRef = doc(db, contactMessagesCollection, messageId);
+    batch.update(docRef, {
+      status: 'read',
+      readBy: adminId,
+      readAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+  });
+  
+  await batch.commit();
+};
+
+export const subscribeToContactMessages = (
+  callback: (data: ContactMessage[]) => void
+) => {
+  if (!db) throw new Error('Firestore is not initialized');
+  const q = query(collection(db, contactMessagesCollection), orderBy('createdAt', 'desc'));
+  
+  return onSnapshot(q, (querySnapshot) => {
+    const data = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as ContactMessage[];
+    callback(data);
+  });
+};
+
+export const getUnreadContactMessagesCount = async (): Promise<number> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  
+  const q = query(collection(db, contactMessagesCollection), where('status', '==', 'new'));
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.size;
+};
+
+export const logContactMessageExport = async (
+  exportData: Omit<ContactMessageExport, 'id' | 'exportedAt'>
+): Promise<string> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  
+  // Validate export data
+  if (!exportData.adminId || !exportData.adminEmail) {
+    throw new Error('Invalid export data: missing admin information');
+  }
+  
+  try {
+    const docRef = await addDoc(collection(db, contactMessagesExportsCollection), {
+      ...exportData,
+      exportedAt: Timestamp.now(),
+    });
+    
+    return docRef.id;
+  } catch (error) {
+    console.error('Failed to log contact message export:', error);
+    throw error;
+  }
+};
+
+export const getContactMessageExports = async (): Promise<ContactMessageExport[]> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  const q = query(collection(db, contactMessagesExportsCollection), orderBy('exportedAt', 'desc'));
+  const querySnapshot = await getDocs(q);
+  
+  return querySnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  })) as ContactMessageExport[];
 };

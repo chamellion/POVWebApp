@@ -1,6 +1,6 @@
 import { Document, Packer, Paragraph, TextRun, AlignmentType, HeadingLevel } from 'docx';
 import { format } from 'date-fns';
-import { Testimony, PrayerRequest } from '../firestore';
+import { Testimony, PrayerRequest, ContactMessage } from '../firestore';
 
 // Dynamic import for pdfmake to avoid SSR issues
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -283,6 +283,124 @@ export const exportPrayerRequestsToPDF = async (
   }
 };
 
+// PDF Export for Contact Messages using pdfmake
+export const exportContactMessagesToPDF = async (
+  contactMessages: ContactMessage[], 
+  options: ExportOptions = { includePhotos: false, includeMetadata: true }
+): Promise<Blob> => {
+  try {
+    // Initialize pdfmake
+    const { pdfMake: pdfMakeInstance } = await initializePdfMake();
+    
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const docDefinition: any = {
+      content: [
+        // Header
+        {
+          text: options.churchName || 'Church Contact Messages',
+          style: 'header',
+          alignment: 'center',
+          margin: [0, 0, 0, 20]
+        },
+        
+        // Metadata
+        ...(options.includeMetadata ? [{
+          text: `Generated on ${format(new Date(), 'PPP')}`,
+          style: 'metadata',
+          alignment: 'right',
+          margin: [0, 0, 0, 20]
+        }] : []),
+        
+        // Contact Messages Table
+        {
+          table: {
+            headerRows: 1,
+            widths: ['*', '*', '*', 'auto', 'auto'],
+            body: [
+              // Header row
+              [
+                { text: 'Name', style: 'tableHeader' },
+                { text: 'Subject', style: 'tableHeader' },
+                { text: 'Message', style: 'tableHeader' },
+                { text: 'Contact', style: 'tableHeader' },
+                { text: 'Date', style: 'tableHeader' }
+              ],
+              // Data rows
+              ...contactMessages.map(message => [
+                { 
+                  text: message.name, 
+                  style: 'tableCell' 
+                },
+                { 
+                  text: message.subject.length > 50 
+                    ? message.subject.substring(0, 50) + '...' 
+                    : message.subject, 
+                  style: 'tableCell' 
+                },
+                { 
+                  text: message.message.length > 100 
+                    ? message.message.substring(0, 100) + '...' 
+                    : message.message, 
+                  style: 'tableCell' 
+                },
+                { 
+                  text: `${message.email}\n${message.phone || 'N/A'}`, 
+                  style: 'tableCell' 
+                },
+                { 
+                  text: message.createdAt 
+                    ? format(message.createdAt.toDate(), 'MMM dd, yyyy') 
+                    : 'N/A', 
+                  style: 'tableCell' 
+                }
+              ])
+            ]
+          },
+          layout: 'lightHorizontalLines'
+        }
+      ],
+      styles: {
+        header: {
+          fontSize: 24,
+          color: '#1f2937'
+        },
+        metadata: {
+          fontSize: 10,
+          color: '#6b7280'
+        },
+        tableHeader: {
+          fontSize: 12,
+          color: '#ffffff',
+          fillColor: '#3b82f6'
+        },
+        tableCell: {
+          fontSize: 10,
+          color: '#374151'
+        }
+      }
+    };
+
+    return new Promise((resolve, reject) => {
+      try {
+        console.log('Creating PDF document for contact messages...');
+        const pdfDoc = pdfMakeInstance.createPdf(docDefinition);
+        console.log('PDF document created, getting blob...');
+        
+        pdfDoc.getBlob((blob: Blob) => {
+          console.log('PDF blob generated successfully, size:', blob.size);
+          resolve(blob);
+        });
+      } catch (error) {
+        console.error('Error in PDF generation for contact messages:', error);
+        reject(new Error(`PDF generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
+      }
+    });
+  } catch (error) {
+    console.error('PDF export error for contact messages:', error);
+    throw new Error(`PDF export failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+};
+
 // Word Document Export using docx
 export const exportToWord = async (
   testimonies: Testimony[], 
@@ -453,6 +571,146 @@ export const exportPrayerRequestsToWord = async (
       
       new Paragraph({
         text: request.request,
+        spacing: { after: 400 }
+      })
+    ])
+  ];
+
+  const doc = new Document({
+    sections: [{
+      properties: {},
+      children
+    }]
+  });
+
+  return await Packer.toBlob(doc);
+};
+
+// Word Document Export for Contact Messages using docx
+export const exportContactMessagesToWord = async (
+  contactMessages: ContactMessage[], 
+  options: ExportOptions = { includePhotos: false, includeMetadata: true }
+): Promise<Blob> => {
+  const children = [
+    // Title
+    new Paragraph({
+      text: options.churchName || 'Church Contact Messages',
+      heading: HeadingLevel.HEADING_1,
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 400 }
+    }),
+    
+    // Metadata
+    ...(options.includeMetadata ? [
+      new Paragraph({
+        text: `Generated on ${format(new Date(), 'PPP')}`,
+        alignment: AlignmentType.RIGHT,
+        spacing: { after: 400 }
+      })
+    ] : []),
+    
+    // Contact Messages
+    ...contactMessages.flatMap((message, index) => [
+      new Paragraph({
+        text: `Contact Message ${index + 1}`,
+        heading: HeadingLevel.HEADING_2,
+        spacing: { before: 400, after: 200 }
+      }),
+      
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: 'Name: ',
+            bold: true
+          }),
+          new TextRun({
+            text: message.name
+          })
+        ],
+        spacing: { after: 200 }
+      }),
+      
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: 'Email: ',
+            bold: true
+          }),
+          new TextRun({
+            text: message.email
+          })
+        ],
+        spacing: { after: 200 }
+      }),
+      
+      ...(message.phone ? [
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: 'Phone: ',
+              bold: true
+            }),
+            new TextRun({
+              text: message.phone
+            })
+          ],
+          spacing: { after: 200 }
+        })
+      ] : []),
+      
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: 'Subject: ',
+            bold: true
+          }),
+          new TextRun({
+            text: message.subject
+          })
+        ],
+        spacing: { after: 200 }
+      }),
+      
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: 'Preferred Contact Method: ',
+            bold: true
+          }),
+          new TextRun({
+            text: message.preferredContactMethod
+          })
+        ],
+        spacing: { after: 200 }
+      }),
+      
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: 'Date: ',
+            bold: true
+          }),
+          new TextRun({
+            text: message.createdAt 
+              ? format(message.createdAt.toDate(), 'PPP') 
+              : 'N/A'
+          })
+        ],
+        spacing: { after: 200 }
+      }),
+      
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: 'Message:',
+            bold: true
+          })
+        ],
+        spacing: { after: 200 }
+      }),
+      
+      new Paragraph({
+        text: message.message,
         spacing: { after: 400 }
       })
     ])
