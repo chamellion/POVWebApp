@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { 
   Trash2, 
   Search, 
@@ -57,7 +58,7 @@ export default function PrayerRequestsPage() {
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [viewingRequest, setViewingRequest] = useState<PrayerRequest | null>(null);
   const [editingRequest, setEditingRequest] = useState<PrayerRequest | null>(null);
   const [showEditForm, setShowEditForm] = useState(false);
 
@@ -263,14 +264,12 @@ export default function PrayerRequestsPage() {
     toast.success('Prayer request updated successfully');
   };
 
-  const toggleExpanded = (requestId: string) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(requestId)) {
-      newExpanded.delete(requestId);
-    } else {
-      newExpanded.add(requestId);
+  const handleViewRequest = (request: PrayerRequest) => {
+    setViewingRequest(request);
+    // Auto-mark as read when viewing
+    if (!request.isRead && user) {
+      handleMarkAsRead(request.id!);
     }
-    setExpandedRows(newExpanded);
   };
 
   const getStats = () => {
@@ -492,21 +491,14 @@ export default function PrayerRequestsPage() {
                             />
                           </TableCell>
                           <TableCell>
-                            <div className="max-w-xs">
-                              <div 
-                                className="cursor-pointer hover:text-blue-600"
-                                onClick={() => toggleExpanded(request.id!)}
-                              >
-                                {request.request.length > 100 
-                                  ? `${request.request.substring(0, 100)}...` 
-                                  : request.request
-                                }
-                              </div>
-                              {expandedRows.has(request.id!) && (
-                                <div className="mt-2 p-3 bg-gray-50 rounded text-sm">
-                                  {request.request}
-                                </div>
-                              )}
+                            <div 
+                              className="max-w-xs cursor-pointer hover:text-blue-600 transition-colors"
+                              onClick={() => handleViewRequest(request)}
+                            >
+                              {request.request.length > 100 
+                                ? `${request.request.substring(0, 100)}...` 
+                                : request.request
+                              }
                             </div>
                           </TableCell>
                           <TableCell>
@@ -628,6 +620,125 @@ export default function PrayerRequestsPage() {
         }}
         onSuccess={handleEditSuccess}
       />
+
+      {/* View Details Dialog */}
+      <Dialog open={!!viewingRequest} onOpenChange={(open) => !open && setViewingRequest(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">Prayer Request Details</DialogTitle>
+          </DialogHeader>
+          
+          {viewingRequest && (
+            <div className="space-y-6">
+              {/* Status Badge */}
+              <div className="flex items-center justify-between">
+                <Badge 
+                  variant={viewingRequest.isRead ? 'default' : 'destructive'}
+                  className="text-sm py-1 px-3"
+                >
+                  {viewingRequest.isRead ? 'Read' : 'Unread'}
+                </Badge>
+                <span className="text-sm text-muted-foreground">
+                  {viewingRequest.createdAt && format(viewingRequest.createdAt.toDate(), 'MMMM d, yyyy h:mm a')}
+                </span>
+              </div>
+
+              {/* Requester Information */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-lg border-b pb-2">Requester Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground">Name</Label>
+                    {viewingRequest.isAnonymous ? (
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="secondary">Anonymous Request</Badge>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 mt-1">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback>
+                            {viewingRequest.name?.charAt(0).toUpperCase() || '?'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="font-medium">{viewingRequest.name || 'Unknown'}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Email</Label>
+                    <p className="mt-1 font-medium">
+                      {viewingRequest.email || '—'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Prayer Request */}
+              <div className="space-y-2">
+                <h3 className="font-semibold text-lg border-b pb-2">Prayer Request</h3>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="whitespace-pre-wrap leading-relaxed">
+                    {viewingRequest.request}
+                  </p>
+                </div>
+              </div>
+
+              {/* Metadata */}
+              {(viewingRequest.readByName || viewingRequest.readAt) && (
+                <div className="space-y-2 pt-4 border-t">
+                  <h3 className="font-semibold text-sm text-muted-foreground">Tracking Information</h3>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    {viewingRequest.readByName && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Read By</Label>
+                        <p className="mt-1">{viewingRequest.readByName}</p>
+                      </div>
+                    )}
+                    {viewingRequest.readAt && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Read At</Label>
+                        <p className="mt-1">
+                          {format(viewingRequest.readAt.toDate(), 'MMM d, yyyy h:mm a')}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="mt-6">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setViewingRequest(null);
+                if (viewingRequest) {
+                  handleEdit(viewingRequest);
+                }
+              }}
+            >
+              <Edit className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (viewingRequest) {
+                  handleDelete(viewingRequest.id!);
+                  setViewingRequest(null);
+                }
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
+            <Button onClick={() => setViewingRequest(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

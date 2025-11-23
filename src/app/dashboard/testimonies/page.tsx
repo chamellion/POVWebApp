@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { 
   Trash2, 
   MessageSquare, 
@@ -63,7 +64,7 @@ export default function TestimoniesPage() {
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [viewingTestimony, setViewingTestimony] = useState<Testimony | null>(null);
 
   useEffect(() => {
     // Only set up listeners if user is authenticated
@@ -251,14 +252,12 @@ export default function TestimoniesPage() {
     setSelectedTestimonies(newSelected);
   };
 
-  const toggleExpandedRow = (testimonyId: string) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(testimonyId)) {
-      newExpanded.delete(testimonyId);
-    } else {
-      newExpanded.add(testimonyId);
+  const handleViewTestimony = (testimony: Testimony) => {
+    setViewingTestimony(testimony);
+    // Auto-mark as read when viewing
+    if (!(testimony.isRead ?? false) && user) {
+      handleMarkAsRead(testimony.id!);
     }
-    setExpandedRows(newExpanded);
   };
 
   const getFilteredStats = () => {
@@ -566,18 +565,13 @@ export default function TestimoniesPage() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              <div className="max-w-md">
-                                <p className="text-sm text-gray-600 truncate">
+                              <div 
+                                className="max-w-md cursor-pointer hover:text-blue-600 transition-colors"
+                                onClick={() => handleViewTestimony(testimony)}
+                              >
+                                <p className="text-sm truncate">
                                   {testimony.testimony || testimony.story || 'No testimony text'}
                                 </p>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => toggleExpandedRow(testimony.id!)}
-                                  className="mt-1 p-0 h-auto text-blue-600 hover:text-blue-800"
-                                >
-                                  {expandedRows.has(testimony.id!) ? 'Show less' : 'Show more'}
-                                </Button>
                               </div>
                             </TableCell>
                             <TableCell>
@@ -636,54 +630,6 @@ export default function TestimoniesPage() {
                     </Table>
                   </div>
                 )}
-
-                {/* Expanded Row Content */}
-                {filteredTestimonies.map((testimony) => 
-                  expandedRows.has(testimony.id!) && (
-                    <div key={`expanded-${testimony.id}`} className="mt-4 p-4 bg-gray-50 rounded-lg">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <h4 className="font-medium text-gray-900 mb-2">Full Testimony</h4>
-                          <p className="text-gray-700 whitespace-pre-wrap">{testimony.testimony || testimony.story || 'No testimony text'}</p>
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-gray-900 mb-2">Details</h4>
-                          <div className="space-y-2 text-sm">
-                            <div>
-                              <span className="font-medium">Member:</span>{' '}
-                              {testimony.isAnonymous ? 'Anonymous' : testimony.name}
-                            </div>
-                            <div>
-                              <span className="font-medium">Anonymous:</span>{' '}
-                              {testimony.isAnonymous ? 'Yes' : 'No'}
-                            </div>
-                            <div>
-                              <span className="font-medium">Allow Sharing:</span>{' '}
-                              {testimony.allowSharing ? 'Yes' : 'No'}
-                            </div>
-                            <div>
-                              <span className="font-medium">Status:</span>{' '}
-                              {(testimony.isRead ?? false) ? 'Read' : 'Unread'}
-                            </div>
-                            {testimony.photo && (
-                              <div>
-                                <span className="font-medium">Photo:</span>{' '}
-                                <a 
-                                  href={testimony.photo} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                  className="text-blue-600 hover:underline"
-                                >
-                                  View Photo
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -710,6 +656,141 @@ export default function TestimoniesPage() {
           }}
         />
       )}
+
+      {/* View Details Dialog */}
+      <Dialog open={!!viewingTestimony} onOpenChange={(open) => !open && setViewingTestimony(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">Testimony Details</DialogTitle>
+          </DialogHeader>
+          
+          {viewingTestimony && (
+            <div className="space-y-6">
+              {/* Status Badge */}
+              <div className="flex items-center justify-between">
+                <div className="flex gap-2">
+                  <Badge 
+                    variant={viewingTestimony.isRead ?? false ? 'default' : 'destructive'}
+                    className="text-sm py-1 px-3"
+                  >
+                    {viewingTestimony.isRead ?? false ? 'Read' : 'Unread'}
+                  </Badge>
+                  {viewingTestimony.isAnonymous && (
+                    <Badge variant="outline" className="text-sm py-1 px-3">
+                      Anonymous
+                    </Badge>
+                  )}
+                  {(viewingTestimony.allowSharing ?? false) && (
+                    <Badge variant="secondary" className="text-sm py-1 px-3">
+                      Shareable
+                    </Badge>
+                  )}
+                </div>
+                <span className="text-sm text-muted-foreground">
+                  {viewingTestimony.createdAt && format(viewingTestimony.createdAt.toDate(), 'MMMM d, yyyy h:mm a')}
+                </span>
+              </div>
+
+              {/* Member Information */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-lg border-b pb-2">Member Information</h3>
+                <div className="flex items-center gap-4">
+                  <Avatar className="h-16 w-16">
+                    <AvatarImage src={viewingTestimony.photo || ''} />
+                    <AvatarFallback className="text-xl">
+                      {viewingTestimony.isAnonymous 
+                        ? 'A' 
+                        : viewingTestimony.name.split(' ').map(n => n[0]).join('')
+                      }
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="text-xl font-semibold">
+                      {viewingTestimony.isAnonymous ? 'Anonymous Member' : viewingTestimony.name}
+                    </p>
+                    {viewingTestimony.photo && (
+                      <a 
+                        href={viewingTestimony.photo} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:underline"
+                      >
+                        View Photo
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Testimony */}
+              <div className="space-y-2">
+                <h3 className="font-semibold text-lg border-b pb-2">Testimony</h3>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="whitespace-pre-wrap leading-relaxed">
+                    {viewingTestimony.testimony || viewingTestimony.story || 'No testimony text'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Sharing Settings */}
+              <div className="space-y-2 pt-4 border-t">
+                <h3 className="font-semibold text-sm text-muted-foreground">Settings</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Anonymous</Label>
+                    <p className="mt-1">{viewingTestimony.isAnonymous ? 'Yes' : 'No'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Allow Sharing</Label>
+                    <p className="mt-1">{viewingTestimony.allowSharing ?? false ? 'Yes' : 'No'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Metadata */}
+              {(viewingTestimony.readByName || viewingTestimony.readAt) && (
+                <div className="space-y-2 pt-4 border-t">
+                  <h3 className="font-semibold text-sm text-muted-foreground">Tracking Information</h3>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    {viewingTestimony.readByName && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Read By</Label>
+                        <p className="mt-1">{viewingTestimony.readByName}</p>
+                      </div>
+                    )}
+                    {viewingTestimony.readAt && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Read At</Label>
+                        <p className="mt-1">
+                          {format(viewingTestimony.readAt.toDate(), 'MMM d, yyyy h:mm a')}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="mt-6">
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (viewingTestimony) {
+                  handleDelete(viewingTestimony.id!);
+                  setViewingTestimony(null);
+                }
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
+            <Button onClick={() => setViewingTestimony(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 } 

@@ -1,0 +1,22 @@
+---
+alwaysApply: true
+---
+---
+description: Core project rules and standards for RCCG Place of Victory Admin Dashboard
+alwaysApply: true
+---
+
+# 🏗 RCCG Admin Dashboard – Base Rules
+
+- **Framework:** Next.js (React 18+ with App Router)
+- **Language:** TypeScript preferred; JS allowed only for utility scripts.
+- **Styling:** Tailwind CSS is mandatory for all UI.
+- **Database:** Firestore (Firebase Modular SDK).
+- **Auth:** Firebase Auth (email/password + Google login restricted by whitelist).
+
+## ✅ General Guidelines
+- Use **functional components** with hooks.
+- **No direct DOM manipulation**; always use React conventions.
+- All Firestore operations must go through a dedicated `src/lib/firebaseAdmin.ts` or `src/lib/firebaseClient.ts`.
+- Prefer async/await, and always wrap Firebase calls in try/catch blocks.
+- Every CRUD mutation should be **logged to `activityLog`** collection.

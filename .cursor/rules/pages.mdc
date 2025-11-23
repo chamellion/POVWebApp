@@ -1,0 +1,18 @@
+---
+alwaysApply: false
+---
+---
+description: Next.js Page structure and behavior guidelines
+globs:
+  - "src/app/**/*.tsx"
+---
+
+# 📄 Page Rules
+
+- Each page must export a default functional component.
+- Import and wrap content with the global `DashboardLayout`.
+- Add **breadcrumb navigation** at the top.
+- Use **metadata API** (`export const metadata = { title, description }`).
+- Optimize for accessibility: semantic HTML (`<main>`, `<section>`, `<header>`).
+- Use **Suspense + Skeleton** components for Firestore data loading.
+- All pages must be **responsive** down to 375px width.

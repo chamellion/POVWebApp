@@ -45,9 +45,10 @@ export interface Event {
 
 export interface GalleryItem {
   id?: string;
-  caption: string;
+  url: string;
+  title: string;
+  description?: string;
   category: string;
-  imageUrl: string;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -62,6 +63,7 @@ export interface Testimony {
   allowSharing?: boolean; // Made optional since your data might not have this
   isRead?: boolean; // Made optional since your data might not have this
   readBy?: string; // admin userId
+  readByName?: string; // admin user's display name
   readAt?: Timestamp;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
@@ -75,6 +77,7 @@ export interface PrayerRequest {
   isAnonymous: boolean;
   isRead: boolean; // default false
   readBy?: string; // admin userId who marked as read
+  readByName?: string; // admin user's display name
   readAt?: Timestamp;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
@@ -160,6 +163,7 @@ export interface ContactMessage {
   userAgent?: string;
   status: 'new' | 'read';
   readBy?: string; // admin userId
+  readByName?: string; // admin user's display name
   readAt?: Timestamp;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
@@ -673,10 +677,22 @@ export const markTestimonyAsRead = async (
 ): Promise<void> => {
   if (!db) throw new Error('Firestore is not initialized');
   
+  // Fetch admin user profile to get display name
+  let adminName = adminEmail; // Fallback to email
+  try {
+    const userProfile = await getUserProfile(adminId);
+    if (userProfile) {
+      adminName = `${userProfile.firstName} ${userProfile.lastName}`.trim();
+    }
+  } catch (error) {
+    console.error('Failed to fetch user profile for display name:', error);
+  }
+  
   const docRef = doc(db, testimoniesCollection, testimonyId);
   await updateDoc(docRef, {
     isRead: true,
     readBy: adminId,
+    readByName: adminName,
     readAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
   });
@@ -690,6 +706,17 @@ export const markMultipleTestimoniesAsRead = async (
 ): Promise<void> => {
   if (!db) throw new Error('Firestore is not initialized');
   
+  // Fetch admin user profile to get display name
+  let adminName = adminEmail; // Fallback to email
+  try {
+    const userProfile = await getUserProfile(adminId);
+    if (userProfile) {
+      adminName = `${userProfile.firstName} ${userProfile.lastName}`.trim();
+    }
+  } catch (error) {
+    console.error('Failed to fetch user profile for display name:', error);
+  }
+  
   const batch = writeBatch(db);
   
   testimonyIds.forEach(testimonyId => {
@@ -697,6 +724,7 @@ export const markMultipleTestimoniesAsRead = async (
     batch.update(docRef, {
       isRead: true,
       readBy: adminId,
+      readByName: adminName,
       readAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     });
@@ -862,10 +890,22 @@ export const markPrayerRequestAsRead = async (
 ): Promise<void> => {
   if (!db) throw new Error('Firestore is not initialized');
   
+  // Fetch admin user profile to get display name
+  let adminName = adminEmail; // Fallback to email
+  try {
+    const userProfile = await getUserProfile(adminId);
+    if (userProfile) {
+      adminName = `${userProfile.firstName} ${userProfile.lastName}`.trim();
+    }
+  } catch (error) {
+    console.error('Failed to fetch user profile for display name:', error);
+  }
+  
   const docRef = doc(db, prayerRequestsCollection, requestId);
   await updateDoc(docRef, {
     isRead: true,
     readBy: adminId,
+    readByName: adminName,
     readAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
   });
@@ -879,6 +919,17 @@ export const markMultiplePrayerRequestsAsRead = async (
 ): Promise<void> => {
   if (!db) throw new Error('Firestore is not initialized');
   
+  // Fetch admin user profile to get display name
+  let adminName = adminEmail; // Fallback to email
+  try {
+    const userProfile = await getUserProfile(adminId);
+    if (userProfile) {
+      adminName = `${userProfile.firstName} ${userProfile.lastName}`.trim();
+    }
+  } catch (error) {
+    console.error('Failed to fetch user profile for display name:', error);
+  }
+  
   const batch = writeBatch(db);
   
   requestIds.forEach(requestId => {
@@ -886,6 +937,7 @@ export const markMultiplePrayerRequestsAsRead = async (
     batch.update(docRef, {
       isRead: true,
       readBy: adminId,
+      readByName: adminName,
       readAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     });
@@ -1016,10 +1068,22 @@ export const markContactMessageAsRead = async (
 ): Promise<void> => {
   if (!db) throw new Error('Firestore is not initialized');
   
+  // Fetch admin user profile to get display name
+  let adminName = adminEmail; // Fallback to email
+  try {
+    const userProfile = await getUserProfile(adminId);
+    if (userProfile) {
+      adminName = `${userProfile.firstName} ${userProfile.lastName}`.trim();
+    }
+  } catch (error) {
+    console.error('Failed to fetch user profile for display name:', error);
+  }
+  
   const docRef = doc(db, contactMessagesCollection, messageId);
   await updateDoc(docRef, {
     status: 'read',
     readBy: adminId,
+    readByName: adminName,
     readAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
   });
@@ -1033,6 +1097,17 @@ export const markMultipleContactMessagesAsRead = async (
 ): Promise<void> => {
   if (!db) throw new Error('Firestore is not initialized');
   
+  // Fetch admin user profile to get display name
+  let adminName = adminEmail; // Fallback to email
+  try {
+    const userProfile = await getUserProfile(adminId);
+    if (userProfile) {
+      adminName = `${userProfile.firstName} ${userProfile.lastName}`.trim();
+    }
+  } catch (error) {
+    console.error('Failed to fetch user profile for display name:', error);
+  }
+  
   const batch = writeBatch(db);
   
   messageIds.forEach(messageId => {
@@ -1040,6 +1115,7 @@ export const markMultipleContactMessagesAsRead = async (
     batch.update(docRef, {
       status: 'read',
       readBy: adminId,
+      readByName: adminName,
       readAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     });
@@ -1103,4 +1179,52 @@ export const getContactMessageExports = async (): Promise<ContactMessageExport[]
     id: doc.id,
     ...doc.data()
   })) as ContactMessageExport[];
+};
+
+// Site Settings Management Functions
+export const getSiteSettings = async (): Promise<SiteSettings | null> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  return getDocument<SiteSettings>(settingsCollection, 'main');
+};
+
+export const updateSiteSettings = async (settings: Partial<SiteSettings>): Promise<void> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  await updateDocument<SiteSettings>(settingsCollection, 'main', settings);
+};
+
+export const createDefaultSiteSettings = async (): Promise<void> => {
+  if (!db) throw new Error('Firestore is not initialized');
+  
+  const defaultSettings: Omit<SiteSettings, 'id'> = {
+    homeHeroText: '',
+    contactPhone: '',
+    socialLinks: {
+      facebook: '',
+      instagram: '',
+      twitter: '',
+      youtube: '',
+    },
+  };
+  
+  const docRef = doc(db, settingsCollection, 'main');
+  await setDoc(docRef, {
+    ...defaultSettings,
+    updatedAt: Timestamp.now(),
+  });
+};
+
+// Real-time listener for site settings
+export const subscribeToSiteSettings = (
+  callback: (data: SiteSettings | null) => void
+) => {
+  if (!db) throw new Error('Firestore is not initialized');
+  const docRef = doc(db, settingsCollection, 'main');
+  
+  return onSnapshot(docRef, (docSnap) => {
+    if (docSnap.exists()) {
+      callback({ id: docSnap.id, ...docSnap.data() } as SiteSettings);
+    } else {
+      callback(null);
+    }
+  });
 };

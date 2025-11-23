@@ -1,0 +1,26 @@
+---
+alwaysApply: true
+---
+# 🔥 Firebase & Firestore Rules
+
+- Use the **modular Firebase SDK** (`import { getFirestore } from 'firebase/firestore'`).
+- All initialization must happen in a single source (`firebase.ts` or `firebaseAdmin.ts`).
+- **Never hardcode Firebase config.** Values must come from environment variables.
+- Use `process.env.NEXT_PUBLIC_FIREBASE_*` for client reads.
+- Use **server-side Firebase Admin SDK** for admin-level writes and exports.
+- All admin writes should include a field `updatedBy: currentUser.uid`.
+
+## ✅ Data Handling
+- Always validate Firestore data types before write.
+- Use structured collections:
+  - `events/`
+  - `recurringEvents/`
+  - `testimonies/`
+  - `prayerRequests/`
+  - `contactMessages/`
+  - `activityLog/`
+- Each document should contain `createdAt`, `updatedAt`, and (where possible) `createdBy`.
+
+## 🚨 Security
+- Reads/writes must conform to Firestore security rules.
+- No unauthenticated operations.

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "firebase": {
+      "command": "npx",
+      "args": ["@modelcontext/firebase-mcp"],
+      "disabled": false
+    },
+    "vercel": {
+      "url": "https://mcp.vercel.com"
+    }
+  }
+}

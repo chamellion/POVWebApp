@@ -1,0 +1,45 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow authenticated users to upload images to gallery folder
+    match /gallery/{allPaths=**} {
+      allow read: if true;  // Public read access for gallery images
+      allow write: if request.auth != null;  // Authenticated users can upload
+    }
+    
+    // Allow authenticated users to upload theme background images
+    match /theme-backgrounds/{allPaths=**} {
+      allow read: if true;  // Public read access for theme backgrounds
+      allow write: if request.auth != null;  // Authenticated users can upload
+    }
+    
+    // Allow authenticated users to upload theme images
+    match /theme-images/{allPaths=**} {
+      allow read: if true;  // Public read access for theme images
+      allow write: if request.auth != null;  // Authenticated users can upload
+    }
+    
+    // Allow authenticated users to upload confession background images
+    match /confession-backgrounds/{allPaths=**} {
+      allow read: if true;  // Public read access for confession backgrounds
+      allow write: if request.auth != null;  // Authenticated users can upload
+    }
+    
+    // Allow authenticated users to upload general images
+    match /general/{allPaths=**} {
+      allow read: if true;  // Public read access for general images
+      allow write: if request.auth != null;  // Authenticated users can upload
+    }
+    
+    // Allow authenticated users to upload carousel images
+    match /carousel/{allPaths=**} {
+      allow read: if true;  // Public read access for carousel images
+      allow write: if request.auth != null;  // Authenticated users can upload
+    }
+    
+    // Default rule - deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
