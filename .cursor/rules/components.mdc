@@ -1,0 +1,20 @@
+---
+alwaysApply: true
+---
+description: Component architecture and structure for dashboard widgets
+globs:
+  - "src/components/**/*.tsx"
+---
+
+# 🧱 Component Design Rules
+
+- Keep components **small, single-purpose, and composable**.
+- Each component folder should include:
+  - `index.tsx`
+  - `types.ts` (if props are complex)
+- Reusable components go in `src/components/common/`.
+- Prefer prop-driven design (`<Card title="..." count={12} />`).
+- Dashboard widgets should:
+  - Show skeletons while loading.
+  - Animate entry using Framer Motion.
+  - Use `Card`, `Stat`, or `Table` layout conventions.

@@ -13,14 +13,16 @@ import { GalleryItem, getDocuments, deleteDocument, galleryCollection } from '@/
 import GalleryForm from './GalleryForm';
 
 const categories = [
-  'Food Drive',
-  'Care Home',
-  'Youth Ministry',
-  'Sunday Service',
-  'Community Outreach',
-  'Bible Study',
-  'Prayer Meeting',
-  'Other'
+  'Food & Clothing',
+  'Outreach',
+  'Youth',
+  'Mental Health',
+  'Festive Support',
+  'Hero',
+  'Projects',
+  'Samaritan Basket',
+  'Christmas Hamper Initiative',
+  'Men Football/Get Together'
 ];
 
 export default function GalleryPage() {
@@ -179,21 +181,21 @@ export default function GalleryPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {filteredItems.map((item) => (
-                  <Card key={item.id} className="overflow-hidden">
-                    <div className="relative aspect-square">
+                  <Card key={item.id} className="overflow-hidden h-full flex flex-col">
+                    <div className="relative aspect-square bg-gray-100">
                       <Image
-                        src={item.imageUrl}
-                        alt={item.caption}
-                        width={400}
-                        height={400}
-                        className="w-full h-full object-cover"
+                        src={item.url}
+                        alt={item.title}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
                       />
                       <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-50 transition-all duration-200 flex items-center justify-center">
                         <div className="opacity-0 hover:opacity-100 transition-opacity duration-200 flex space-x-2">
                           <Button
                             variant="secondary"
                             size="sm"
-                            onClick={() => window.open(item.imageUrl, '_blank')}
+                            onClick={() => window.open(item.url, '_blank')}
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -214,12 +216,21 @@ export default function GalleryPage() {
                         </div>
                       </div>
                     </div>
-                    <CardContent className="p-4">
-                      <div className="space-y-2">
-                        <p className="font-medium text-gray-900 line-clamp-2">
-                          {item.caption}
-                        </p>
-                        <Badge variant="secondary">{item.category}</Badge>
+                    <CardContent className="p-4 flex-1 flex flex-col">
+                      <div className="space-y-2 flex-1">
+                        <h3 className="font-medium text-gray-900 line-clamp-2 text-sm leading-tight">
+                          {item.title}
+                        </h3>
+                        {item.description && (
+                          <p className="text-gray-600 text-xs line-clamp-2">
+                            {item.description}
+                          </p>
+                        )}
+                        <div className="mt-auto">
+                          <Badge variant="secondary" className="text-xs">
+                            {item.category}
+                          </Badge>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>

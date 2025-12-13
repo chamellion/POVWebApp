@@ -6,217 +6,230 @@ service cloud.firestore {
     // CLIENT-FACING COLLECTIONS
     // Public read access, authenticated write access
     // ========================================
-    
+
     // Events collection - public read, authenticated write
     match /events/{document} {
       allow read: if true;
       allow write: if request.auth != null;
     }
-    
+
     // Recurring Events collection - public read, authenticated write
     match /recurringEvents/{document} {
       allow read: if true;
       allow write: if request.auth != null;
     }
-    
+
     // Skipped Recurring Events collection - public read, authenticated write
     match /skippedRecurringEvents/{document} {
       allow read: if true;
       allow write: if request.auth != null;
     }
-    
+
     // Pastors collection - public read, authenticated write
     match /pastors/{document} {
       allow read: if true;
       allow write: if request.auth != null;
     }
-    
+
     // Carousel collection - public read, authenticated write
     match /carousel/{document} {
       allow read: if true;
       allow write: if request.auth != null;
     }
-    
+
+    // Team Leads collection - public read, authenticated write
+    // ✅ This allows client app to display team leads,
+    // but still restricts modifications to logged-in admins
+    match /teamLeads/{document} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
     // ========================================
     // NEWSLETTER SIGNUP COLLECTION
     // Special rules: public create, authenticated read
     // ========================================
-    
-    // Newsletter Signups collection - public create, authenticated read
+
     match /newsletterSignups/{document} {
-      // Allow anyone to create a newsletter signup
       allow create: if 
-        // Email field must exist and be a string
         request.resource.data.email is string &&
         request.resource.data.email.size() > 0 &&
-        // Basic email format validation
         request.resource.data.email.matches('^[^@]+@[^@]+\\.[^@]+$');
       
-      // Only authenticated users can read newsletter signups
       allow read: if request.auth != null;
-      
-      // Only authenticated users can update/delete
       allow update, delete: if request.auth != null;
     }
-    
+
     // ========================================
     // ADMIN-ONLY COLLECTIONS
     // Authenticated read/write access only
     // ========================================
-    
-    // Gallery collection - authenticated access only
+
     match /gallery/{document} {
       allow read, write: if request.auth != null;
     }
-    
-    // Testimonies collection - authenticated access only
+
+    // Testimonies collection - public create, authenticated read/update/delete
     match /testimonies/{document} {
-      allow read, write: if request.auth != null;
-    }
-    
-    // Testimonies exports collection - authenticated access only
-    match /testimonies_exports/{document} {
-      allow read, write: if request.auth != null;
-    }
-    
-    // Prayer Requests collection - public create, authenticated read/write
-    match /prayerRequests/{document} {
-      // Allow anyone to create a prayer request
+      // Allow anyone to create a testimony
       allow create: if 
         // Required fields must exist and be of correct type
-        request.resource.data.keys().hasAll(['request', 'isAnonymous']) &&
-        request.resource.data.request is string &&
-        request.resource.data.request.size() > 0 &&
+        request.resource.data.keys().hasAll(['testimony', 'isAnonymous']) &&
+        request.resource.data.testimony is string &&
+        request.resource.data.testimony.size() > 0 &&
         request.resource.data.isAnonymous is bool &&
         
         // Optional fields must be string or null if present
         (request.resource.data.name == null || (request.resource.data.name is string && request.resource.data.name.size() > 0)) &&
-        (request.resource.data.email == null || (request.resource.data.email is string && request.resource.data.email.size() > 0)) &&
+        (request.resource.data.photo == null || (request.resource.data.photo is string && request.resource.data.photo.size() > 0)) &&
         
-        // If email is provided, it should be a valid email format
-        (request.resource.data.email == null || request.resource.data.email.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$')) &&
+        // If anonymous, name should be null or "Anonymous"
+        (request.resource.data.isAnonymous == false || (request.resource.data.name == null || request.resource.data.name == "Anonymous")) &&
         
-        // If anonymous, name and email should be null
-        (request.resource.data.isAnonymous == false || (request.resource.data.name == null && request.resource.data.email == null));
+        // Metadata auto-managed by client
+        request.resource.data.createdAt is timestamp;
       
-      // Only authenticated users can read prayer requests
+      // Only authenticated users can read testimonies
       allow read: if request.auth != null;
       
       // Only authenticated users can update/delete
       allow update, delete: if request.auth != null;
     }
-    
-    // Prayer requests exports collection - authenticated access only
+
+    match /testimonies_exports/{document} {
+      allow read, write: if request.auth != null;
+    }
+
+    match /prayerRequests/{document} {
+      // Public create, authenticated read/update/delete
+      allow create: if 
+        request.resource.data.keys().hasAll(['request', 'isAnonymous']) &&
+        request.resource.data.request is string &&
+        request.resource.data.request.size() > 0 &&
+        request.resource.data.isAnonymous is bool &&
+        (request.resource.data.name == null || request.resource.data.name is string) &&
+        (request.resource.data.email == null || request.resource.data.email is string) &&
+        (request.resource.data.email == null || request.resource.data.email.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$')) &&
+        (request.resource.data.isAnonymous == false || (request.resource.data.name == null && request.resource.data.email == null));
+
+      allow read, update, delete: if request.auth != null;
+    }
+
     match /prayer_requests_exports/{document} {
       allow read, write: if request.auth != null;
     }
-    
-    // Contact Messages collection - public create, authenticated read/write
+
+    // ========================================
+    // CONTACT MESSAGES COLLECTION
+    // Public create, authenticated read/update/delete, export supported
+    // ========================================
+
     match /contactMessages/{document} {
-      // Allow anyone to create a contact message
       allow create: if 
-        // Required fields must exist and be of correct type
-        request.resource.data.keys().hasAll(['name', 'email', 'subject', 'message', 'preferredContactMethod']) &&
-        request.resource.data.name is string &&
-        request.resource.data.name.size() > 0 &&
-        request.resource.data.email is string &&
-        request.resource.data.email.size() > 0 &&
-        request.resource.data.subject is string &&
-        request.resource.data.subject.size() > 0 &&
-        request.resource.data.message is string &&
-        request.resource.data.message.size() > 0 &&
-        request.resource.data.preferredContactMethod in ['email', 'phone', 'either'] &&
-        
-        // Basic email format validation
+        request.resource.data.keys().hasAll(['name', 'email', 'message']) &&
+        request.resource.data.name is string && request.resource.data.name.size() > 0 &&
+        request.resource.data.email is string && request.resource.data.email.size() > 0 &&
+        request.resource.data.message is string && request.resource.data.message.size() > 0 &&
         request.resource.data.email.matches('^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$') &&
-        
-        // Optional fields must be string if present
+        // optional fields
         (request.resource.data.phone == null || (request.resource.data.phone is string && request.resource.data.phone.size() > 0)) &&
-        (request.resource.data.userAgent == null || (request.resource.data.userAgent is string && request.resource.data.userAgent.size() > 0));
-      
-      // Only authenticated users can read contact messages
-      allow read: if request.auth != null;
-      
-      // Only authenticated users can update/delete
-      allow update, delete: if request.auth != null;
+        (request.resource.data.subject == null || (request.resource.data.subject is string && request.resource.data.subject.size() > 0)) &&
+        (request.resource.data.userAgent == null || (request.resource.data.userAgent is string && request.resource.data.userAgent.size() > 0)) &&
+        // preferred contact method check
+        (request.resource.data.preferredContactMethod == null || request.resource.data.preferredContactMethod in ['email', 'phone', 'either']) &&
+        // metadata auto-managed by client
+        (request.resource.data.createdAt is timestamp) &&
+        (request.resource.data.status == 'new');
+
+      allow read, update, delete: if request.auth != null;
     }
-    
-    // Contact messages exports collection - authenticated access only
+
     match /contact_messages_exports/{document} {
       allow read, write: if request.auth != null;
     }
-    
-    // Settings collection - authenticated access only
+
+    // ========================================
+    // SITE SETTINGS COLLECTION
+    // ✅ Public read (for client app), authenticated write (for admins)
+    // ========================================
+
     match /settings/{document} {
-      allow read, write: if request.auth != null;
+      allow read: if true; // ✅ Anyone can read settings (social links, contact phone)
+      allow write: if request.auth != null; // ✅ Only authenticated admins can write
     }
-    
-    // Team leads collection - authenticated access only
-    match /teamLeads/{document} {
-      allow read, write: if request.auth != null;
-    }
-    
-    // Leaders collection - authenticated access only
+
+    // ========================================
+    // OTHER ADMIN COLLECTIONS
+    // ========================================
+
     match /leaders/{document} {
       allow read, write: if request.auth != null;
     }
-    
-    // Mission Vision collection - authenticated access only
+
     match /mission_vision/{document} {
       allow read, write: if request.auth != null;
     }
-    
-    // Service Times collection - authenticated access only
+
     match /service_times/{document} {
       allow read, write: if request.auth != null;
     }
-    
-    // About collection - authenticated access only
+
     match /about/{document} {
       allow read, write: if request.auth != null;
     }
-    
-    // Community Service collection - authenticated access only
+
     match /community_service/{document} {
       allow read, write: if request.auth != null;
+    }
+
+    // ========================================
+    // CONFESSION OF THE MONTH COLLECTION
+    // Public read, authenticated write
+    // ========================================
+    
+    // Confession of the Month collection - public read, authenticated write
+    match /confession_of_the_month/{document} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    
+    // ========================================
+    // THEME OF THE MONTH COLLECTION
+    // Public read, authenticated write
+    // ========================================
+    
+    // Theme of the Month collection - public read, authenticated write
+    match /theme_of_the_month/{document} {
+      allow read: if true;
+      allow write: if request.auth != null;
     }
     
     // ========================================
     // ACTIVITY LOG COLLECTION
-    // Authenticated read access, authenticated create access, no updates/deletes
+    // Immutable audit trail
     // ========================================
-    
-    // Activity Log collection - authenticated read/create, no updates/deletes
+
     match /activityLog/{document} {
-      // Only authenticated users can read activity logs
-      allow read: if request.auth != null;
-      
-      // Only authenticated users can create activity logs
-      allow create: if request.auth != null;
-      
-      // Nobody can update or delete activity logs (immutable audit trail)
+      allow read, create: if request.auth != null;
       allow update, delete: if false;
     }
-    
+
     // ========================================
     // USERS COLLECTION
-    // Users can only read/write their own profile
+    // Users can only manage their own profile
     // ========================================
-    
-    // Users collection - users can only access their own profile
+
     match /users/{userId} {
-      // Users can read and write their own profile
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-    
+
     // ========================================
     // DEFAULT RULE
-    // Deny all other access by default
+    // Deny all other access
     // ========================================
-    
-    // Deny access to any collection not explicitly defined above
+
     match /{document=**} {
       allow read, write: if false;
+    }
   }
-  }
-} 
+}

@@ -1,0 +1,21 @@
+---
+description: UI and visual design consistency rules
+globs:
+  - "src/components/**/*"
+alwaysApply: false
+---
+
+# 🎨 UI & Tailwind Design Standards
+
+- Use Tailwind exclusively for layout and styling.
+- Maintain consistent section spacing: `py-20 sm:py-24`.
+- Text hierarchy:
+  - Titles: `text-3xl md:text-5xl font-semibold`
+  - Subtitles: `text-xl md:text-2xl text-gray-600`
+- Color palette:
+  - Primary: `#0A1A44`
+  - Accent: `#C19B5C`
+  - Background: `#F3F4F6`
+- Apply rounded corners (`rounded-xl` or `rounded-2xl`) on cards.
+- Use smooth transitions: `transition-all duration-300 ease-in-out`.
+- Use **Lucide icons** where needed (`react-icons` only if unavailable).

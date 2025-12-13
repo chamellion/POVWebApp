@@ -1,0 +1,21 @@
+---
+alwaysApply: false
+---
+description: Activity log data consistency and usage
+globs:
+  - "src/lib/activityLog.ts"
+  - "src/hooks/useActivityLog.ts"
+---
+
+# 📊 Activity Log Rules
+
+- Every Firestore mutation (create/update/delete) must call `logActivity()`.
+- Each log entry must include:
+  - `action` (string)
+  - `collection` (string)
+  - `documentId` (string)
+  - `performedBy` (user.uid)
+  - `timestamp` (serverTimestamp)
+  - `details` (string, optional)
+- No updates/deletes to existing log entries — immutable.
+- Logs should be accessible under `/dashboard/activity`.

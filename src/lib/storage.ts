@@ -34,14 +34,25 @@ export const uploadImage = async (
         onProgress?.(progress);
       },
       (error) => {
-        reject(error);
+        console.error('Upload error:', error);
+        // Provide more specific error messages
+        if (error.code === 'storage/unauthorized') {
+          reject(new Error('Upload failed: You are not authorized to upload files. Please make sure you are logged in.'));
+        } else if (error.code === 'storage/quota-exceeded') {
+          reject(new Error('Upload failed: Storage quota exceeded.'));
+        } else if (error.code === 'storage/retry-limit-exceeded') {
+          reject(new Error('Upload failed: Network error. Please try again.'));
+        } else {
+          reject(new Error(`Upload failed: ${error.message}`));
+        }
       },
       async () => {
         try {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
           resolve(downloadURL);
         } catch (error) {
-          reject(error);
+          console.error('Download URL error:', error);
+          reject(new Error('Failed to get download URL after upload.'));
         }
       }
     );

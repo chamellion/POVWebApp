@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Upload, X, Image as ImageIcon } from 'lucide-react';
 import { uploadImage } from '@/lib/storage';
 import { toast } from 'sonner';
+import { SafeImage } from './SafeImage';
 
 interface ImageUploadProps {
   onUploadComplete: (url: string) => void;
@@ -103,7 +104,7 @@ export function ImageUpload({
         <Card>
           <CardContent className="p-4">
             <div className="relative">
-              <Image
+              <SafeImage
                 src={previewUrl}
                 alt="Preview"
                 width={400}

@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { 
   Trash2, 
   Search, 
@@ -55,7 +56,7 @@ export default function ContactMessagesPage() {
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [viewingMessage, setViewingMessage] = useState<ContactMessage | null>(null);
 
   useEffect(() => {
     // Only set up listeners if user is authenticated
@@ -256,14 +257,12 @@ export default function ContactMessagesPage() {
     }
   };
 
-  const toggleExpanded = (messageId: string) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(messageId)) {
-      newExpanded.delete(messageId);
-    } else {
-      newExpanded.add(messageId);
+  const handleViewMessage = (message: ContactMessage) => {
+    setViewingMessage(message);
+    // Auto-mark as read when viewing
+    if (message.status === 'new' && user) {
+      handleMarkAsRead(message.id!);
     }
-    setExpandedRows(newExpanded);
   };
 
   const getStats = () => {
@@ -499,21 +498,14 @@ export default function ContactMessagesPage() {
                                 </div>
                               </TableCell>
                               <TableCell className="px-3 py-3">
-                                <div className="max-w-full">
-                                  <div 
-                                    className="cursor-pointer hover:text-blue-600 truncate"
-                                    onClick={() => toggleExpanded(message.id!)}
-                                  >
-                                    {message.message.length > 80 
-                                      ? `${message.message.substring(0, 80)}...` 
-                                      : message.message
-                                    }
-                                  </div>
-                                  {expandedRows.has(message.id!) && (
-                                    <div className="mt-2 p-3 bg-gray-50 rounded text-sm whitespace-pre-wrap">
-                                      {message.message}
-                                    </div>
-                                  )}
+                                <div 
+                                  className="max-w-full cursor-pointer hover:text-blue-600 transition-colors truncate"
+                                  onClick={() => handleViewMessage(message)}
+                                >
+                                  {message.message.length > 80 
+                                    ? `${message.message.substring(0, 80)}...` 
+                                    : message.message
+                                  }
                                 </div>
                               </TableCell>
                               <TableCell className="px-3 py-3">
@@ -610,6 +602,139 @@ export default function ContactMessagesPage() {
           setSelectedMessages(new Set());
         }}
       />
+
+      {/* View Details Dialog */}
+      <Dialog open={!!viewingMessage} onOpenChange={(open) => !open && setViewingMessage(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">Contact Message Details</DialogTitle>
+          </DialogHeader>
+          
+          {viewingMessage && (
+            <div className="space-y-6">
+              {/* Status Badge */}
+              <div className="flex items-center justify-between">
+                <Badge 
+                  variant={viewingMessage.status === 'read' ? 'default' : 'destructive'}
+                  className="text-sm py-1 px-3"
+                >
+                  {viewingMessage.status === 'read' ? 'Read' : 'Unread'}
+                </Badge>
+                <span className="text-sm text-muted-foreground">
+                  {viewingMessage.createdAt && format(viewingMessage.createdAt.toDate(), 'MMMM d, yyyy h:mm a')}
+                </span>
+              </div>
+
+              {/* Contact Information */}
+              <div className="space-y-4">
+                <h3 className="font-semibold text-lg border-b pb-2">Contact Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground">Name</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback>
+                          {viewingMessage.name.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="font-medium">{viewingMessage.name}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Email</Label>
+                    <p className="mt-1 font-medium">
+                      <a href={`mailto:${viewingMessage.email}`} className="text-blue-600 hover:underline">
+                        {viewingMessage.email}
+                      </a>
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Phone</Label>
+                    <p className="mt-1 font-medium">
+                      {viewingMessage.phone ? (
+                        <a href={`tel:${viewingMessage.phone}`} className="text-blue-600 hover:underline">
+                          {viewingMessage.phone}
+                        </a>
+                      ) : '—'}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Preferred Contact</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      {viewingMessage.preferredContactMethod === 'email' && (
+                        <><Mail className="h-4 w-4 text-blue-600" /><span className="capitalize">Email</span></>
+                      )}
+                      {viewingMessage.preferredContactMethod === 'phone' && (
+                        <><Phone className="h-4 w-4 text-green-600" /><span className="capitalize">Phone</span></>
+                      )}
+                      {viewingMessage.preferredContactMethod === 'either' && (
+                        <><Mail className="h-4 w-4 text-blue-600" /><Phone className="h-4 w-4 text-green-600 ml-1" /><span className="capitalize ml-1">Either</span></>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Subject */}
+              <div className="space-y-2">
+                <h3 className="font-semibold text-lg border-b pb-2">Subject</h3>
+                <p className="text-base font-medium">{viewingMessage.subject}</p>
+              </div>
+
+              {/* Message */}
+              <div className="space-y-2">
+                <h3 className="font-semibold text-lg border-b pb-2">Message</h3>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="whitespace-pre-wrap leading-relaxed">
+                    {viewingMessage.message}
+                  </p>
+                </div>
+              </div>
+
+              {/* Metadata */}
+              {(viewingMessage.readByName || viewingMessage.readAt) && (
+                <div className="space-y-2 pt-4 border-t">
+                  <h3 className="font-semibold text-sm text-muted-foreground">Tracking Information</h3>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    {viewingMessage.readByName && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Read By</Label>
+                        <p className="mt-1">{viewingMessage.readByName}</p>
+                      </div>
+                    )}
+                    {viewingMessage.readAt && (
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Read At</Label>
+                        <p className="mt-1">
+                          {format(viewingMessage.readAt.toDate(), 'MMM d, yyyy h:mm a')}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="mt-6">
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (viewingMessage) {
+                  handleDelete(viewingMessage.id!);
+                  setViewingMessage(null);
+                }
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </Button>
+            <Button onClick={() => setViewingMessage(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

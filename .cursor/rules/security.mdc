@@ -1,0 +1,20 @@
+---
+description: Security and authentication flow enforcement
+globs:
+  - "src/app/auth/**/*"
+  - "src/lib/auth/**/*"
+alwaysApply: true
+---
+
+# 🔐 Authentication and Access Rules
+
+- Disable sign-up route for general users.
+- Only allow login for whitelisted Firebase Auth users.
+- After login:
+  - Redirect users without a profile to `/profile` for completion.
+  - Restrict dashboard access until profile is complete.
+- Profile updates:
+  - Email is immutable.
+  - Allow password change only with confirmation.
+  - Validate UK phone number format.
+- All profile writes go to `users/{uid}` in Firestore.

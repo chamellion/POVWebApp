@@ -5,6 +5,7 @@ import {
   addDoc, 
   updateDoc, 
   deleteDoc, 
+  setDoc,
   query, 
   where, 
   orderBy,
@@ -15,6 +16,7 @@ import {
   Unsubscribe
 } from 'firebase/firestore';
 import { db } from '../firebase';
+import { getDocument, updateDocument } from '../firestore';
 
 // Types for content management
 export interface CarouselSlide {
@@ -398,4 +400,100 @@ export async function updateGalleryImage(id: string, updates: Partial<GalleryIma
 
 export async function deleteGalleryImage(id: string): Promise<void> {
   await deleteDoc(doc(db, galleryCollection, id));
+} 
+
+// Confession of the Month Management
+export interface ConfessionOfTheMonth {
+  id?: string;
+  title: string;
+  text: string;
+  backgroundMode: 'image' | 'color';
+  backgroundImageUrl?: string;
+  backgroundColor: string;
+  textColor: string;
+  fontFamily: string;
+  fontWeight: string;
+  fontStyle: string;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export const confessionOfTheMonthCollection = 'confession_of_the_month';
+
+export async function getConfessionOfTheMonth(): Promise<ConfessionOfTheMonth | null> {
+  return getDocument<ConfessionOfTheMonth>(confessionOfTheMonthCollection, 'active');
+}
+
+export async function updateConfessionOfTheMonth(data: Partial<ConfessionOfTheMonth>): Promise<void> {
+  const existing = await getConfessionOfTheMonth();
+  
+  if (existing) {
+    await updateDocument(confessionOfTheMonthCollection, 'active', {
+      ...data,
+      updatedAt: Timestamp.now(),
+    });
+  } else {
+    // Create with defaults if doesn't exist
+    const defaultData: ConfessionOfTheMonth = {
+      title: 'Confession of the Month',
+      text: '',
+      backgroundMode: 'color',
+      backgroundColor: '#f9fafb',
+      textColor: '#111827',
+      fontFamily: 'Inter',
+      fontWeight: 'normal',
+      fontStyle: 'normal',
+      ...data,
+    };
+    
+    await setDoc(doc(db, confessionOfTheMonthCollection, 'active'), {
+      ...defaultData,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+  }
+}
+
+// Theme of the Month Management
+export interface ThemeOfTheMonth {
+  id?: string;
+  title: string;
+  subtitle?: string;
+  fontFamily: string;
+  textColor: string;
+  imageUrl?: string;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export const themeOfTheMonthCollection = 'theme_of_the_month';
+
+export async function getThemeOfTheMonth(): Promise<ThemeOfTheMonth | null> {
+  return getDocument<ThemeOfTheMonth>(themeOfTheMonthCollection, 'active');
+}
+
+export async function updateThemeOfTheMonth(data: Partial<ThemeOfTheMonth>): Promise<void> {
+  const existing = await getThemeOfTheMonth();
+  
+  if (existing) {
+    await updateDocument(themeOfTheMonthCollection, 'active', {
+      ...data,
+      updatedAt: Timestamp.now(),
+    });
+  } else {
+    // Create with defaults if doesn't exist
+    const defaultData: ThemeOfTheMonth = {
+      title: 'Theme of the Month',
+      subtitle: '',
+      textColor: '#1f2937',
+      fontFamily: 'Inter',
+      ...data,
+    };
+    
+    await setDoc(doc(db, themeOfTheMonthCollection, 'active'), {
+      ...defaultData,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+  }
 } 

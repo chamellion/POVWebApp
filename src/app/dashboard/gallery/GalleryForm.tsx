@@ -14,20 +14,24 @@ import { Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { GalleryItem, createDocument, updateDocument, galleryCollection } from '@/lib/firestore';
 import { uploadImage } from '@/lib/storage';
+import { useAuth } from '@/contexts/AuthContext';
 
 const categories = [
-  'Food Drive',
-  'Care Home',
-  'Youth Ministry',
-  'Sunday Service',
-  'Community Outreach',
-  'Bible Study',
-  'Prayer Meeting',
-  'Other'
+  'Food & Clothing',
+  'Outreach',
+  'Youth',
+  'Mental Health',
+  'Festive Support',
+  'Hero',
+  'Projects',
+  'Samaritan Basket',
+  'Christmas Hamper Initiative',
+  'Men Football/Get Together'
 ];
 
 const gallerySchema = z.object({
-  caption: z.string().min(1, 'Caption is required'),
+  title: z.string().min(1, 'Title is required'),
+  description: z.string().optional(),
   category: z.string().min(1, 'Category is required'),
 });
 
@@ -40,15 +44,17 @@ interface GalleryFormProps {
 }
 
 export default function GalleryForm({ item, onSuccess, onCancel }: GalleryFormProps) {
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string>(item?.imageUrl || '');
+  const [imagePreview, setImagePreview] = useState<string>(item?.url || '');
   const [uploadProgress, setUploadProgress] = useState(0);
 
   const form = useForm<GalleryFormData>({
     resolver: zodResolver(gallerySchema),
     defaultValues: {
-      caption: item?.caption || '',
+      title: item?.title || '',
+      description: item?.description || '',
       category: item?.category || '',
     },
   });
@@ -71,14 +77,19 @@ export default function GalleryForm({ item, onSuccess, onCancel }: GalleryFormPr
   };
 
   const onSubmit = async (data: GalleryFormData) => {
-    if (!imagePreview && !item?.imageUrl) {
+    if (!user) {
+      toast.error('You must be logged in to upload images');
+      return;
+    }
+
+    if (!imagePreview && !item?.url) {
       toast.error('Please select an image');
       return;
     }
 
     setIsLoading(true);
     try {
-      let imageUrl = item?.imageUrl || '';
+      let imageUrl = item?.url || '';
 
       // Upload new image if selected
       if (imageFile) {
@@ -91,7 +102,7 @@ export default function GalleryForm({ item, onSuccess, onCancel }: GalleryFormPr
 
       const galleryData = {
         ...data,
-        imageUrl,
+        url: imageUrl,
       };
 
       if (item?.id) {
@@ -172,19 +183,29 @@ export default function GalleryForm({ item, onSuccess, onCancel }: GalleryFormPr
             </div>
           </div>
 
-          {/* Caption */}
+          {/* Title */}
           <div className="space-y-2">
-            <Label htmlFor="caption">Caption</Label>
+            <Label htmlFor="title">Title</Label>
             <Input
-              id="caption"
-              placeholder="Describe this photo..."
-              {...form.register('caption')}
+              id="title"
+              placeholder="Enter image title..."
+              {...form.register('title')}
             />
-            {form.formState.errors.caption && (
+            {form.formState.errors.title && (
               <p className="text-sm text-red-500">
-                {form.formState.errors.caption.message}
+                {form.formState.errors.title.message}
               </p>
             )}
+          </div>
+
+          {/* Description */}
+          <div className="space-y-2">
+            <Label htmlFor="description">Description (Optional)</Label>
+            <Input
+              id="description"
+              placeholder="Enter image description..."
+              {...form.register('description')}
+            />
           </div>
 
           {/* Category */}

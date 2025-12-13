@@ -1,0 +1,38 @@
+{
+  "mcpServers": {
+    "firebase": {
+      "type": "firebase",
+      "config": {
+        "projectId": "rccgplaceofvictory",
+        "useServiceAccount": true
+      }
+    },
+    "vercel": {
+      "type": "vercel",
+      "config": {
+        "projectName": "pov-admin-dashboard"
+      }
+    },
+    "documentation": {
+      "type": "local",
+      "config": {
+        "root": "./docs",
+        "extensions": [".md", ".txt"]
+      }
+    },
+    "localEnv": {
+      "type": "local",
+      "config": {
+        "path": ".env.local",
+        "readOnly": true
+      }
+    },
+    "tailwindPlay": {
+      "type": "web",
+      "url": "https://play.tailwindcss.com/api",
+      "config": {
+        "theme": "extended"
+      }
+    }
+  }
+}

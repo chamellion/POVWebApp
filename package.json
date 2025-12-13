@@ -9,7 +9,8 @@
     "vercel-build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "add-test-data": "node scripts/add-test-data.js"
+    "add-test-data": "node scripts/add-test-data.js",
+    "test-settings": "node scripts/test-settings.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

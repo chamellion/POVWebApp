@@ -29,8 +29,7 @@ import {
   getLeadersByCategory, 
   deleteLeader, 
   updateLeader, 
-  subscribeToLeadersByCategory,
-  migrateLeadersToNewStructure
+  subscribeToLeadersByCategory
 } from '@/lib/firestore';
 import LeaderForm from '@/app/dashboard/leaders/LeaderForm';
 
@@ -62,7 +61,6 @@ export default function LeadersPage() {
   const [editingLeader, setEditingLeader] = useState<Leader | null>(null);
   const [activeCategory, setActiveCategory] = useState<LeaderCategory>('pastor');
   const [searchTerm, setSearchTerm] = useState('');
-  const [isMigrating, setIsMigrating] = useState(false);
 
   // Fetch leaders on component mount
   useEffect(() => {
@@ -194,28 +192,6 @@ export default function LeadersPage() {
     setShowForm(true);
   };
 
-  const handleMigration = async () => {
-    if (confirm('This will migrate existing leaders from the old structure to the new one. Continue?')) {
-      setIsMigrating(true);
-      try {
-        await migrateLeadersToNewStructure();
-        toast.success('Migration completed successfully! Please refresh the page.');
-        // Refresh the data
-        const [pastorsData, teamLeadsData] = await Promise.all([
-          getLeadersByCategory('pastor'),
-          getLeadersByCategory('teamLead')
-        ]);
-        setPastors(pastorsData);
-        setTeamLeads(teamLeadsData);
-      } catch (error) {
-        console.error('Migration failed:', error);
-        toast.error('Migration failed. Please try again.');
-      } finally {
-        setIsMigrating(false);
-      }
-    }
-  };
-
   if (loading || isLoading) {
     return (
       <DashboardLayout>
@@ -235,19 +211,10 @@ export default function LeadersPage() {
             <h1 className="text-3xl font-bold text-gray-900">Leaders</h1>
             <p className="text-gray-600 mt-2">Manage pastors and team leads</p>
           </div>
-          <div className="flex items-center space-x-2">
-            <Button 
-              variant="outline" 
-              onClick={handleMigration}
-              disabled={isMigrating}
-            >
-              {isMigrating ? 'Migrating...' : 'Migrate Data'}
-            </Button>
-            <Button onClick={() => openNewLeaderForm()}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Leader
-            </Button>
-          </div>
+          <Button onClick={() => openNewLeaderForm()}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Leader
+          </Button>
         </div>
 
         {/* Stats */}
