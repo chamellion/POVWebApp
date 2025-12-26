@@ -1,4 +1,4 @@
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from './firebase';
 
 // Check if Firebase is initialized
@@ -60,11 +60,30 @@ export const uploadImage = async (
 };
 
 export const deleteImage = async (url: string): Promise<void> => {
+  if (!isFirebaseInitialized()) {
+    throw new Error('Firebase Storage is not initialized');
+  }
+
   try {
-    // Note: Firebase Storage doesn't have a direct delete method in v9+
-    // You might need to implement this differently or use a Cloud Function
-    console.log('Delete image:', url);
+    // Extract the path from the Firebase Storage URL
+    // URLs look like: https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{path}?alt=media&token={token}
+    const urlObj = new URL(url);
+    const pathMatch = urlObj.pathname.match(/\/o\/(.+)$/);
+    
+    if (!pathMatch || !pathMatch[1]) {
+      console.warn('Could not parse storage path from URL:', url);
+      return; // Don't throw error, just log warning
+    }
+    
+    // Decode the path (it's URL encoded)
+    const filePath = decodeURIComponent(pathMatch[1]);
+    const storageRef = ref(storage!, filePath);
+    
+    await deleteObject(storageRef);
+    console.log('✅ Image deleted from storage:', filePath);
   } catch (error) {
-    throw error;
+    console.error('Error deleting image from storage:', error);
+    // Don't throw error - we still want to delete from Firestore even if storage delete fails
+    console.warn('⚠️ Continuing with Firestore deletion despite storage error');
   }
 }; 

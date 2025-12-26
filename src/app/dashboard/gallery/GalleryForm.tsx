@@ -15,24 +15,13 @@ import { toast } from 'sonner';
 import { GalleryItem, createDocument, updateDocument, galleryCollection } from '@/lib/firestore';
 import { uploadImage } from '@/lib/storage';
 import { useAuth } from '@/contexts/AuthContext';
-
-const categories = [
-  'Food & Clothing',
-  'Outreach',
-  'Youth',
-  'Mental Health',
-  'Festive Support',
-  'Hero',
-  'Projects',
-  'Samaritan Basket',
-  'Christmas Hamper Initiative',
-  'Men Football/Get Together'
-];
+import { GALLERY_CATEGORIES, GALLERY_PAGES } from '@/lib/constants/gallery';
 
 const gallerySchema = z.object({
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
   category: z.string().min(1, 'Category is required'),
+  page: z.string().min(1, 'Page/Section is required'),
 });
 
 type GalleryFormData = z.infer<typeof gallerySchema>;
@@ -56,6 +45,7 @@ export default function GalleryForm({ item, onSuccess, onCancel }: GalleryFormPr
       title: item?.title || '',
       description: item?.description || '',
       category: item?.category || '',
+      page: item?.page || 'community-services',
     },
   });
 
@@ -219,7 +209,7 @@ export default function GalleryForm({ item, onSuccess, onCancel }: GalleryFormPr
                 <SelectValue placeholder="Select a category" />
               </SelectTrigger>
               <SelectContent>
-                {categories.map((category) => (
+                {GALLERY_CATEGORIES.map((category) => (
                   <SelectItem key={category} value={category}>
                     {category}
                   </SelectItem>
@@ -229,6 +219,31 @@ export default function GalleryForm({ item, onSuccess, onCancel }: GalleryFormPr
             {form.formState.errors.category && (
               <p className="text-sm text-red-500">
                 {form.formState.errors.category.message}
+              </p>
+            )}
+          </div>
+
+          {/* Page/Section */}
+          <div className="space-y-2">
+            <Label htmlFor="page">Page/Section</Label>
+            <Select
+              value={form.watch('page')}
+              onValueChange={(value) => form.setValue('page', value)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a page/section" />
+              </SelectTrigger>
+              <SelectContent>
+                {GALLERY_PAGES.map((page) => (
+                  <SelectItem key={page.value} value={page.value}>
+                    {page.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {form.formState.errors.page && (
+              <p className="text-sm text-red-500">
+                {form.formState.errors.page.message}
               </p>
             )}
           </div>
