@@ -49,6 +49,7 @@ export interface GalleryItem {
   title: string;
   description?: string;
   category: string;
+  page: string; // Page/section where this image appears (e.g., 'community-services', 'hero', 'testimonials')
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }
